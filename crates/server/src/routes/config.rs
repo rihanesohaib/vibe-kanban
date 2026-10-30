@@ -4,7 +4,10 @@ use api_types::LoginStatus;
 use axum::{
     Json, Router,
     body::Body,
-    extract::{Path, Query, State, ws::Message},
+    extract::{
+        Path, Query, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
     http,
     response::{IntoResponse, Json as ResponseJson, Response},
     routing::{get, put},
@@ -33,12 +36,7 @@ use ts_rs::TS;
 use utils::{assets::config_path, log_msg::LogMsg, response::ApiResponse};
 use uuid::Uuid;
 
-use crate::{
-    DeploymentImpl,
-    error::ApiError,
-    middleware::signed_ws::{MaybeSignedWebSocket, SignedWsUpgrade},
-    runtime::relay_registration,
-};
+use crate::{DeploymentImpl, error::ApiError};
 
 pub fn router() -> Router<DeploymentImpl> {
     Router::new()
@@ -171,7 +169,7 @@ async fn get_user_system_info(
             }
             caps
         },
-        shared_api_base: deployment.remote_info().get_api_base(),
+        shared_api_base: deployment.shared_api_base().map(str::to_owned),
         preview_proxy_port: deployment.client_info().get_preview_proxy_port(),
     };
 
@@ -200,8 +198,8 @@ async fn update_config(
             *config = new_config.clone();
             drop(config);
 
-            // Track config events when fields transition from false → true and run side effects
-            handle_config_events(&deployment, &old_config, &new_config).await;
+            // Track config events when fields transition from false → true
+            track_config_events(&deployment, &old_config, &new_config).await;
 
             ResponseJson(ApiResponse::success(new_config))
         }
@@ -238,24 +236,6 @@ async fn track_config_events(deployment: &DeploymentImpl, old: &Config, new: &Co
                 .track_if_analytics_allowed(event_name, properties)
                 .await;
         }
-    }
-}
-
-async fn handle_config_events(deployment: &DeploymentImpl, old: &Config, new: &Config) {
-    track_config_events(deployment, old, new).await;
-
-    let old_host_nickname = relay_registration::clean_host_nickname(old, deployment.user_id());
-    let new_host_nickname = relay_registration::clean_host_nickname(new, deployment.user_id());
-
-    match (old.relay_enabled, new.relay_enabled) {
-        (false, true) => relay_registration::spawn_relay(deployment).await,
-        (true, false) => relay_registration::stop_relay(deployment).await,
-        (true, true) => {
-            if old_host_nickname != new_host_nickname {
-                relay_registration::spawn_relay(deployment).await;
-            }
-        }
-        (false, false) => (),
     }
 }
 
@@ -624,7 +604,7 @@ pub struct ExecutorDiscoveredOptionsStreamQuery {
 }
 
 pub async fn stream_executor_discovered_options_ws(
-    ws: SignedWsUpgrade,
+    ws: WebSocketUpgrade,
     State(deployment): State<DeploymentImpl>,
     Query(query): Query<ExecutorDiscoveredOptionsStreamQuery>,
 ) -> impl IntoResponse {
@@ -636,7 +616,7 @@ pub async fn stream_executor_discovered_options_ws(
 }
 
 async fn handle_executor_discovered_options_ws(
-    mut socket: MaybeSignedWebSocket,
+    mut socket: WebSocket,
     deployment: DeploymentImpl,
     query: ExecutorDiscoveredOptionsStreamQuery,
 ) -> anyhow::Result<()> {
@@ -677,10 +657,10 @@ async fn handle_executor_discovered_options_ws(
                     }
                     inbound = socket.recv() => {
                         match inbound {
-                            Ok(Some(Message::Close(_))) => break,
-                            Ok(Some(_)) => {}
-                            Ok(None) => break,
-                            Err(_) => break,
+                            Some(Ok(Message::Close(_))) => break,
+                            Some(Ok(_)) => {}
+                            None => break,
+                            Some(Err(_)) => break,
                         }
                     }
                 }

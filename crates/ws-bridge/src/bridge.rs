@@ -123,18 +123,3 @@ where
     )
     .await
 }
-
-/// Bridge two tungstenite websocket streams while preserving frame types.
-pub async fn bridge_tungstenite_ws<A, B, EA, EB>(a: A, b: B) -> Result<(), WsBridgeError>
-where
-    A: Stream<Item = Result<tungstenite::Message, EA>>
-        + futures_util::Sink<tungstenite::Message, Error = EA>
-        + Unpin,
-    B: Stream<Item = Result<tungstenite::Message, EB>>
-        + futures_util::Sink<tungstenite::Message, Error = EB>
-        + Unpin,
-    EA: Into<BridgeSourceError>,
-    EB: Into<BridgeSourceError>,
-{
-    ws_copy_bidirectional(a, b, std::convert::identity, std::convert::identity).await
-}

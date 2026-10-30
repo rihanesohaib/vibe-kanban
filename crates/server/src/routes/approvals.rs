@@ -1,6 +1,9 @@
 use axum::{
     Router,
-    extract::{State, ws::Message},
+    extract::{
+        State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
     http::StatusCode,
     response::{IntoResponse, Json as ResponseJson},
     routing::{get, post},
@@ -13,10 +16,7 @@ use utils::{
     response::ApiResponse,
 };
 
-use crate::{
-    DeploymentImpl,
-    middleware::signed_ws::{MaybeSignedWebSocket, SignedWsUpgrade},
-};
+use crate::DeploymentImpl;
 
 async fn respond_to_approval(
     State(deployment): State<DeploymentImpl>,
@@ -49,7 +49,7 @@ async fn respond_to_approval(
 }
 
 async fn stream_approvals_ws(
-    ws: SignedWsUpgrade,
+    ws: WebSocketUpgrade,
     State(deployment): State<DeploymentImpl>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| async move {
@@ -60,7 +60,7 @@ async fn stream_approvals_ws(
 }
 
 async fn handle_approvals_ws(
-    mut socket: MaybeSignedWebSocket,
+    mut socket: WebSocket,
     deployment: DeploymentImpl,
 ) -> anyhow::Result<()> {
     let mut stream = deployment.approvals().patch_stream();
@@ -91,10 +91,10 @@ async fn handle_approvals_ws(
             }
             inbound = socket.recv() => {
                 match inbound {
-                    Ok(Some(Message::Close(_))) => break,
-                    Ok(Some(_)) => {}
-                    Ok(None) => break,
-                    Err(error) => {
+                    Some(Ok(Message::Close(_))) => break,
+                    Some(Ok(_)) => {}
+                    None => break,
+                    Some(Err(error)) => {
                         tracing::warn!("approvals WS receive error: {}", error);
                         break;
                     }
