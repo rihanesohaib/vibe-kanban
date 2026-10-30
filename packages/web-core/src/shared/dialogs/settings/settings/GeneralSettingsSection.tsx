@@ -27,6 +27,7 @@ import {
 } from '@/shared/lib/executor';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
+import { useVisibleExecutors } from '@/shared/hooks/useVisibleExecutors';
 import { TagManager } from '@/shared/components/TagManager';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import {
@@ -79,10 +80,18 @@ export function GeneralSettingsSection() {
   const { setTheme } = useTheme();
 
   // Executor options for the default coding agent dropdown
+  const allExecutors = useMemo(() => Object.keys(profiles ?? {}), [profiles]);
+  const {
+    executors: visibleExecutors,
+    hiddenCount: hiddenExecutorCount,
+    showAll: showAllExecutors,
+    setShowAll: setShowAllExecutors,
+  } = useVisibleExecutors(allExecutors, [
+    draft?.executor_profile?.executor,
+    config?.executor_profile?.executor,
+  ]);
   const executorOptions = profiles
-    ? Object.keys(profiles)
-        .sort()
-        .map((key) => ({ value: key, label: toPrettyCase(key) }))
+    ? visibleExecutors.map((key) => ({ value: key, label: toPrettyCase(key) }))
     : [];
 
   const selectedAgentProfile =
@@ -476,6 +485,21 @@ export function GeneralSettingsSection() {
                     {option.label}
                   </DropdownMenuItem>
                 ))}
+                {hiddenExecutorCount > 0 && (
+                  <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      setShowAllExecutors(!showAllExecutors);
+                    }}
+                    className="text-low"
+                  >
+                    {showAllExecutors
+                      ? t('settings.agents.hideUninstalled')
+                      : t('settings.agents.showUninstalled', {
+                          count: hiddenExecutorCount,
+                        })}
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
 

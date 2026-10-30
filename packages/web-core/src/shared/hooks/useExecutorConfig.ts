@@ -7,6 +7,7 @@ import type {
 } from 'shared/types';
 import { getVariantOptions } from '@/shared/lib/executor';
 import { usePresetOptions } from '@/shared/hooks/usePresetOptions';
+import { useVisibleExecutors } from '@/shared/hooks/useVisibleExecutors';
 
 function getProfileKey(
   executor: BaseCodingAgent | null,
@@ -34,10 +35,16 @@ function useEffectiveExecutor(
   lastUsedConfig: ExecutorConfig | null,
   configExecutorProfile: ExecutorProfileId | null | undefined
 ) {
-  const options = useMemo(
+  const allOptions = useMemo(
     () => Object.keys(profiles ?? {}) as BaseCodingAgent[],
     [profiles]
   );
+  const { executors: options } = useVisibleExecutors(allOptions, [
+    userSelections.executor,
+    scratchConfig?.executor,
+    lastUsedConfig?.executor,
+    configExecutorProfile?.executor,
+  ]);
 
   const effective = useMemo(
     () =>

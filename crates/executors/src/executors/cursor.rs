@@ -31,11 +31,12 @@ use crate::{
             ConversationPatch, EntryIndexProvider, patch, shell_command_parsing::CommandCategory,
         },
     },
-    model_selector::{ModelInfo, ModelSelectorConfig, ReasoningOption},
+    model_selector::ModelSelectorConfig,
     profile::ExecutorConfig,
 };
 
 mod mcp;
+pub mod models;
 const CURSOR_AUTH_REQUIRED_MSG: &str = "Authentication required. Please run 'cursor-agent login' first, or set CURSOR_API_KEY environment variable.";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS, JsonSchema)]
@@ -47,16 +48,20 @@ pub struct CursorAgent {
     pub force: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(
-        description = "auto, opus-4.6, sonnet-4.6, gpt-5.4, gpt-5.4-fast, gpt-5.3-codex, gpt-5.3-codex-fast, gpt-5.3-codex-spark-preview, gpt-5.2, gpt-5.2-codex, gpt-5.2-codex-fast, gpt-5.1, gpt-5.1-codex-max, gpt-5.1-codex-mini, grok, kimi-k2.5, gemini-3.1-pro, gemini-3-pro, gemini-3-flash, opus-4.5, sonnet-4.5, composer-1.5, composer-1, composer-2, composer-2-fast"
+        description = "Model id as listed by `cursor-agent --list-models`, e.g. auto, claude-opus-5-thinking-high, gpt-5.6-sol-high-fast. Leave empty for the CLI default."
     )]
     pub model: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Legacy reasoning level for older model ids; current model ids already encode effort."
+    )]
     pub reasoning: Option<String>,
     #[serde(flatten)]
     pub cmd: CmdOverrides,
 }
 
-// get the model full name
+// Maps legacy (base model, reasoning) pairs saved in older configs to full ids.
+// Current CLI ids already encode effort and pass through unchanged.
 fn resolve_cursor_model_name<'a>(base_model: &'a str, reasoning: Option<&'a str>) -> &'a str {
     match (base_model, reasoning) {
         ("gpt-5.4", Some("medium")) => "gpt-5.4-medium",
@@ -109,33 +114,6 @@ fn resolve_cursor_model_name<'a>(base_model: &'a str, reasoning: Option<&'a str>
     }
 }
 
-fn cursor_reasoning_options(base_model: &str) -> Vec<ReasoningOption> {
-    match base_model {
-        "gpt-5.4" | "gpt-5.4-fast" => {
-            ReasoningOption::from_names(["medium", "high", "xhigh"].map(String::from))
-        }
-        "gpt-5.3-codex" | "gpt-5.3-codex-fast" | "gpt-5.2-codex" | "gpt-5.2-codex-fast" => {
-            ReasoningOption::from_names(["low", "medium", "high", "xhigh"].map(String::from))
-        }
-        "gpt-5.2" | "gpt-5.1-codex-max" | "gpt-5.1" => {
-            ReasoningOption::from_names(["medium", "high"].map(String::from))
-        }
-        "opus-4.6" | "sonnet-4.6" | "opus-4.5" | "sonnet-4.5" => vec![
-            ReasoningOption {
-                id: "standard".to_string(),
-                label: "Standard".to_string(),
-                is_default: false,
-            },
-            ReasoningOption {
-                id: "thinking".to_string(),
-                label: "Thinking".to_string(),
-                is_default: true,
-            },
-        ],
-        _ => vec![],
-    }
-}
-
 impl CursorAgent {
     pub fn base_command() -> &'static str {
         "cursor-agent"
@@ -148,14 +126,15 @@ impl CursorAgent {
     }
 
     fn build_command_builder(&self) -> Result<CommandBuilder, CommandBuildError> {
-        let mut builder =
-            CommandBuilder::new(Self::base_command()).params(["-p", "--output-format=stream-json"]);
+        // Headless runs must never block on the workspace trust prompt.
+        let mut builder = CommandBuilder::new(Self::base_command()).params([
+            "-p",
+            "--output-format=stream-json",
+            "--trust",
+        ]);
 
         if self.force.unwrap_or(false) {
             builder = builder.extend_params(["--force"]);
-        } else {
-            // trusting the current directory is a minimum requirement for cursor to run
-            builder = builder.extend_params(["--trust"]);
         }
 
         if let Some(model) = self.resolved_model() {
@@ -618,15 +597,23 @@ impl StandardCodingAgentExecutor for CursorAgent {
             return AvailabilityInfo::NotFound;
         }
 
-        let config_files_found = self
-            .default_mcp_config_path()
-            .map(|p| p.exists())
-            .unwrap_or(false);
+        let api_key_set = std::env::var_os("CURSOR_API_KEY").is_some_and(|v| !v.is_empty())
+            || self
+                .cmd
+                .env
+                .as_ref()
+                .is_some_and(|env| env.get("CURSOR_API_KEY").is_some_and(|v| !v.is_empty()));
 
-        if config_files_found {
-            AvailabilityInfo::InstallationFound
+        if api_key_set {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or_default();
+            AvailabilityInfo::LoginDetected {
+                last_auth_timestamp: now,
+            }
         } else {
-            AvailabilityInfo::NotFound
+            AvailabilityInfo::InstallationFound
         }
     }
 
@@ -646,52 +633,35 @@ impl StandardCodingAgentExecutor for CursorAgent {
         _workdir: Option<&std::path::Path>,
         _repo_path: Option<&std::path::Path>,
     ) -> Result<futures::stream::BoxStream<'static, json_patch::Patch>, ExecutorError> {
-        let models: Vec<ModelInfo> = [
-            ("auto", "Auto"),
-            ("gpt-5.4", "GPT-5.4"),
-            ("gpt-5.4-fast", "GPT-5.4 Fast"),
-            ("gemini-3.1-pro", "Gemini 3.1 Pro"),
-            ("opus-4.6", "Claude 4.6 Opus"),
-            ("sonnet-4.6", "Claude 4.6 Sonnet"),
-            ("gpt-5.3-codex", "GPT-5.3 Codex"),
-            ("gpt-5.3-codex-fast", "GPT-5.3 Codex Fast"),
-            ("gpt-5.3-codex-spark-preview", "GPT-5.3 Codex Spark"),
-            ("kimi-k2.5", "Kimi K2.5"),
-            ("opus-4.5", "Claude 4.5 Opus"),
-            ("sonnet-4.5", "Claude 4.5 Sonnet"),
-            ("gemini-3-pro", "Gemini 3 Pro"),
-            ("gemini-3-flash", "Gemini 3 Flash"),
-            ("gpt-5.2-codex", "GPT-5.2 Codex"),
-            ("gpt-5.2-codex-fast", "GPT-5.2 Codex Fast"),
-            ("gpt-5.2", "GPT-5.2"),
-            ("gpt-5.1-codex-max", "GPT-5.1 Codex Max"),
-            ("gpt-5.1", "GPT-5.1"),
-            ("gpt-5.1-codex-mini", "GPT-5.1 Codex Mini"),
-            ("grok", "Grok"),
-            ("composer-1", "Composer 1"),
-            ("composer-1.5", "Composer 1.5"),
-            ("composer-2", "Composer 2"),
-            ("composer-2-fast", "Composer 2 Fast"),
-        ]
-        .into_iter()
-        .map(|(id, name)| ModelInfo {
-            id: id.to_string(),
-            name: name.to_string(),
-            provider_id: None,
-            reasoning_options: cursor_reasoning_options(id),
-        })
-        .collect();
-
-        let options = ExecutorDiscoveredOptions {
-            model_selector: ModelSelectorConfig {
-                models,
+        fn to_options(list: models::CursorModelList, loading: bool) -> ExecutorDiscoveredOptions {
+            ExecutorDiscoveredOptions {
+                model_selector: ModelSelectorConfig {
+                    models: list.models,
+                    default_model: list.default_model,
+                    ..Default::default()
+                },
+                loading_models: loading,
+                error: list.error,
                 ..Default::default()
-            },
-            ..Default::default()
+            }
+        }
+
+        if let Some(cached) = models::cached_models(Self::base_command(), &self.cmd) {
+            return Ok(Box::pin(futures::stream::once(async move {
+                patch::executor_discovered_options(to_options(cached, false))
+            })));
+        }
+
+        let initial =
+            patch::executor_discovered_options(to_options(models::fallback_models(), true));
+        let cmd = self.cmd.clone();
+        let discovered = async move {
+            let list = models::discover_models(Self::base_command(), &cmd).await;
+            patch::executor_discovered_options(to_options(list, false))
         };
-        Ok(Box::pin(futures::stream::once(async move {
-            patch::executor_discovered_options(options)
-        })))
+        Ok(Box::pin(
+            futures::stream::once(async move { initial }).chain(futures::stream::once(discovered)),
+        ))
     }
 }
 /* ===========================

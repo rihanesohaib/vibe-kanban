@@ -1016,6 +1016,12 @@ export const configApi = {
     );
     return handleApiResponse<AvailabilityInfo>(response);
   },
+  getAllAgentAvailability: async (): Promise<
+    Record<string, AvailabilityInfo>
+  > => {
+    const response = await makeRequest('/api/agents/availability');
+    return handleApiResponse<Record<string, AvailabilityInfo>>(response);
+  },
 };
 
 // Task Tags APIs (all tags are global)

@@ -497,6 +497,15 @@ impl ExecutorConfigs {
     pub async fn get_recommended_executor_profile(
         &self,
     ) -> Result<ExecutorProfileId, ProfileError> {
+        let cursor_profile = ExecutorProfileId::new(BaseCodingAgent::CursorAgent);
+        if self
+            .get_coding_agent(&cursor_profile)
+            .is_some_and(|agent| agent.get_availability_info().is_available())
+        {
+            tracing::info!("Recommended executor: {}", BaseCodingAgent::CursorAgent);
+            return Ok(cursor_profile);
+        }
+
         let mut agents_with_info: Vec<(BaseCodingAgent, AvailabilityInfo)> = Vec::new();
 
         for &base_agent in self.executors.keys() {

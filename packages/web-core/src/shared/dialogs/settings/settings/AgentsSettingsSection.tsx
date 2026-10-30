@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   SpinnerIcon,
@@ -16,6 +16,7 @@ import {
 import { ExecutorConfigForm } from './ExecutorConfigForm';
 import { useMachineProfiles } from '@/shared/hooks/useProfiles';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
+import { useVisibleExecutors } from '@/shared/hooks/useVisibleExecutors';
 import { CreateConfigurationDialog } from '../CreateConfigurationDialog';
 import { DeleteConfigurationDialog } from '../DeleteConfigurationDialog';
 import type { BaseCodingAgent, ExecutorConfigs } from 'shared/types';
@@ -65,6 +66,20 @@ export function AgentsSettingsSection() {
   const [localParsedProfiles, setLocalParsedProfiles] =
     useState<ExecutorConfigs | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+
+  const allExecutors = useMemo(
+    () => Object.keys(localParsedProfiles?.executors ?? {}),
+    [localParsedProfiles?.executors]
+  );
+  const {
+    executors: visibleExecutors,
+    hiddenCount: hiddenExecutorCount,
+    showAll: showAllExecutors,
+    setShowAll: setShowAllExecutors,
+  } = useVisibleExecutors(allExecutors, [
+    selectedExecutorType,
+    config?.executor_profile?.executor,
+  ]);
 
   // Initialize selection with default executor when config loads
   useEffect(() => {
@@ -386,7 +401,7 @@ export function AgentsSettingsSection() {
               label={t('settings.agents.editor.agentLabel')}
               isFirst
             >
-              {Object.keys(localParsedProfiles.executors).map((executor) => {
+              {visibleExecutors.map((executor) => {
                 const isDefault =
                   config?.executor_profile?.executor === executor;
                 return (
@@ -422,6 +437,19 @@ export function AgentsSettingsSection() {
                   </TwoColumnPickerItem>
                 );
               })}
+              {hiddenExecutorCount > 0 && (
+                <TwoColumnPickerItem
+                  onClick={() => setShowAllExecutors(!showAllExecutors)}
+                >
+                  <span className="text-low">
+                    {showAllExecutors
+                      ? t('settings.agents.hideUninstalled')
+                      : t('settings.agents.showUninstalled', {
+                          count: hiddenExecutorCount,
+                        })}
+                  </span>
+                </TwoColumnPickerItem>
+              )}
             </TwoColumnPickerColumn>
 
             {/* Variants column */}

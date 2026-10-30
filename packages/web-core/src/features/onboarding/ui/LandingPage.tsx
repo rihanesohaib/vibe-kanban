@@ -24,6 +24,11 @@ import {
   type EditorConfig,
 } from 'shared/types';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
+import {
+  useAgentAvailability,
+  useShowAllExecutors,
+} from '@/shared/hooks/useVisibleExecutors';
+import { filterInstalledExecutors } from '@/shared/lib/executor';
 import { useTheme } from '@/shared/hooks/useTheme';
 import { AgentIcon, getAgentName } from '@/shared/components/AgentIcon';
 import { IdeIcon } from '@/shared/components/IdeIcon';
@@ -78,6 +83,7 @@ const SOUND_OPTIONS: SoundOption[] = [
 ];
 
 const AGENT_PRIORITY: BaseCodingAgent[] = [
+  BaseCodingAgent.CURSOR_AGENT,
   BaseCodingAgent.CLAUDE_CODE,
   BaseCodingAgent.CODEX,
   BaseCodingAgent.OPENCODE,
@@ -139,8 +145,10 @@ export function LandingPage() {
   const [initialized, setInitialized] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<BaseCodingAgent>(
-    BaseCodingAgent.CLAUDE_CODE
+    BaseCodingAgent.CURSOR_AGENT
   );
+  const { data: agentAvailability } = useAgentAvailability();
+  const [showAllExecutors] = useShowAllExecutors();
   const [editorType, setEditorType] = useState<EditorType>(EditorType.VS_CODE);
   const [customCommand, setCustomCommand] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -189,11 +197,14 @@ export function LandingPage() {
       return getAgentName(a).localeCompare(getAgentName(b));
     };
 
-    if (profiles) {
-      return (Object.keys(profiles) as BaseCodingAgent[]).sort(compareAgents);
-    }
-    return [...Object.values(BaseCodingAgent)].sort(compareAgents);
-  }, [profiles]);
+    const agents = profiles
+      ? (Object.keys(profiles) as BaseCodingAgent[])
+      : [...Object.values(BaseCodingAgent)];
+    const sorted = agents.sort(compareAgents);
+    return showAllExecutors
+      ? sorted
+      : filterInstalledExecutors(sorted, agentAvailability, [selectedAgent]);
+  }, [profiles, showAllExecutors, agentAvailability, selectedAgent]);
 
   const editorOptions = useMemo(() => Object.values(EditorType), []);
 

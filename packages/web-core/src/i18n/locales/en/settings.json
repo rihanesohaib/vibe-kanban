@@ -310,6 +310,8 @@
       "description": "Customize the behavior of coding agents with different configurations.",
       "loading": "Loading agent configurations...",
       "selectAgent": "Select agent",
+      "showUninstalled": "Show agents that aren't installed ({{count}})",
+      "hideUninstalled": "Hide agents that aren't installed",
       "save": {
         "button": "Save Agent Configurations",
         "success": "✓ Executor configurations saved successfully!",

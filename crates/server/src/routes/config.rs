@@ -52,6 +52,7 @@ pub fn router() -> Router<DeploymentImpl> {
             get(check_editor_availability),
         )
         .route("/agents/check-availability", get(check_agent_availability))
+        .route("/agents/availability", get(get_all_agent_availability))
         .route("/agents/preset-options", get(get_agent_preset_options))
         .route(
             "/agents/discovered-options/ws",
@@ -558,6 +559,30 @@ async fn check_agent_availability(
     };
 
     ResponseJson(ApiResponse::success(info))
+}
+
+/// Availability of every configured executor, keyed by executor name.
+async fn get_all_agent_availability(
+    State(_deployment): State<DeploymentImpl>,
+) -> ResponseJson<ApiResponse<HashMap<String, AvailabilityInfo>>> {
+    let availability = tokio::task::spawn_blocking(|| {
+        let profiles = ExecutorConfigs::get_cached();
+        profiles
+            .executors
+            .keys()
+            .map(|executor| {
+                let info = profiles
+                    .get_coding_agent(&ExecutorProfileId::new(*executor))
+                    .map(|agent| agent.get_availability_info())
+                    .unwrap_or(AvailabilityInfo::NotFound);
+                (executor.to_string(), info)
+            })
+            .collect::<HashMap<_, _>>()
+    })
+    .await
+    .unwrap_or_default();
+
+    ResponseJson(ApiResponse::success(availability))
 }
 
 #[derive(Debug, Deserialize, TS)]
