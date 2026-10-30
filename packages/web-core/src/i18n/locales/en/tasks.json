@@ -49,8 +49,7 @@
       "title": "No dev server running",
       "setupTitle": "You must set up a dev server script to use the preview feature",
       "setupPrompt": "To use the live preview and click-to-edit, please add a dev server script to this project.",
-      "editDevScript": "Edit Dev Server Script",
-      "learnMore": "Learn more about testing applications"
+      "editDevScript": "Edit Dev Server Script"
     },
     "logs": {
       "label": "Logs",

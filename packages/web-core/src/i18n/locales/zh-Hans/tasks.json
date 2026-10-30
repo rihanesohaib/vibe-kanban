@@ -52,8 +52,7 @@
       "title": "没有运行开发服务器",
       "setupTitle": "必须设置开发服务器脚本才能使用预览功能",
       "setupPrompt": "要使用实时预览和点击编辑，请为此项目添加开发服务器脚本。",
-      "editDevScript": "编辑开发服务器脚本",
-      "learnMore": "了解更多关于测试应用程序的信息"
+      "editDevScript": "编辑开发服务器脚本"
     },
     "logs": {
       "label": "日志",

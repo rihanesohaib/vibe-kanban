@@ -1,5 +1,4 @@
 import {
-  forwardRef,
   useCallback,
   useEffect,
   useMemo,
@@ -7,12 +6,10 @@ import {
   useState,
 } from 'react';
 import {
-  BookOpenIcon,
   BirdIcon,
   CheckIcon,
   CowIcon,
   DeviceMobileIcon,
-  GithubLogoIcon,
   MusicNoteIcon,
   MusicNotesIcon,
   SpeakerHighIcon,
@@ -21,9 +18,7 @@ import {
   WaveformIcon,
   type Icon,
 } from '@phosphor-icons/react';
-import type { IconProps } from '@phosphor-icons/react';
 import { usePostHog } from 'posthog-js/react';
-import { siDiscord } from 'simple-icons';
 import {
   BaseCodingAgent,
   EditorType,
@@ -90,39 +85,6 @@ const AGENT_PRIORITY: BaseCodingAgent[] = [
   BaseCodingAgent.CODEX,
   BaseCodingAgent.OPENCODE,
   BaseCodingAgent.GEMINI,
-];
-
-const DiscordIcon: Icon = forwardRef<SVGSVGElement, IconProps>(
-  ({ className, color = 'currentColor' }, ref) => (
-    <svg
-      ref={ref}
-      className={className}
-      viewBox="0 0 24 24"
-      fill={color}
-      aria-hidden="true"
-    >
-      <path d={siDiscord.path} />
-    </svg>
-  )
-);
-DiscordIcon.displayName = 'DiscordIcon';
-
-const SOCIAL_LINKS = [
-  {
-    label: 'Discord',
-    href: 'https://discord.gg/AC4nwVtJM3',
-    icon: DiscordIcon,
-  },
-  {
-    label: 'GitHub',
-    href: 'https://github.com/BloopAI/vibe-kanban',
-    icon: GithubLogoIcon,
-  },
-  {
-    label: 'Docs',
-    href: 'https://www.vibekanban.com/docs',
-    icon: BookOpenIcon,
-  },
 ];
 
 const REMOTE_ONBOARDING_EVENTS = {
@@ -242,10 +204,6 @@ export function LandingPage() {
     }
   };
 
-  const openExternalLink = (url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
-
   const handleSoundSelect = (value: SoundFile) => {
     setSoundEnabled(true);
     setSoundFile(value);
@@ -337,22 +295,7 @@ export function LandingPage() {
         {/* Header */}
         <header className="shrink-0 space-y-base p-double pb-base">
           <div className="flex items-center justify-between">
-            <img
-              src={logoSrc}
-              alt="Agent Control Center"
-              className="h-8 w-auto logo"
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              {SOCIAL_LINKS.map((link) => (
-                <PrimaryButton
-                  key={link.label}
-                  value={link.label}
-                  variant="tertiary"
-                  actionIcon={link.icon}
-                  onClick={() => openExternalLink(link.href)}
-                />
-              ))}
-            </div>
+            <img src={logoSrc} alt="JARVIS" className="h-8 w-auto logo" />
           </div>
           <div className="rounded-sm border border-brand bg-brand/20 p-base">
             <div className="flex items-start gap-base">
@@ -361,19 +304,10 @@ export function LandingPage() {
                 weight="fill"
               />
               <p className="text-sm text-normal">
-                Agent Control Center runs AI coding agents with{' '}
+                JARVIS runs AI coding agents with{' '}
                 <code>--dangerously-skip-permissions</code> /{' '}
                 <code>--yolo</code> by default. Always review what agents are
-                doing.{' '}
-                <a
-                  href="https://www.vibekanban.com/docs/getting-started#safety-notice"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-brand hover:underline"
-                >
-                  Learn more
-                </a>
-                .
+                doing.
               </p>
             </div>
           </div>
@@ -552,28 +486,7 @@ export function LandingPage() {
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 border-t border-border p-double pt-base flex items-center justify-between gap-base">
-          <p className="text-xs text-low">
-            By continuing you agree to the{' '}
-            <a
-              href="https://www.vibekanban.com/terms"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-brand hover:underline"
-            >
-              terms and conditions
-            </a>{' '}
-            and{' '}
-            <a
-              href="https://www.vibekanban.com/privacy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-brand hover:underline"
-            >
-              privacy policy
-            </a>
-            .
-          </p>
+        <div className="shrink-0 border-t border-border p-double pt-base flex items-center justify-end gap-base">
           <PrimaryButton
             value={saving ? 'Saving...' : 'Continue'}
             onClick={handleContinue}

@@ -12,11 +12,9 @@ import {
   PlusIcon,
   KanbanIcon,
   SpinnerIcon,
-  StarIcon,
   type Icon,
 } from '@phosphor-icons/react';
 import { cn } from '../lib/cn';
-import { AppBarSocialLink } from './AppBarSocialLink';
 import {
   Popover,
   PopoverTrigger,
@@ -25,12 +23,6 @@ import {
 } from './Popover';
 import { Tooltip } from './Tooltip';
 import { useTranslation } from 'react-i18next';
-
-function formatStarCount(count: number): string {
-  if (count < 1000) return String(count);
-  const k = count / 1000;
-  return k >= 10 ? `${Math.floor(k)}k` : `${k.toFixed(1)}k`;
-}
 
 function getProjectInitials(name: string): string {
   const trimmed = name.trim();
@@ -66,13 +58,9 @@ interface AppBarProps {
   onHoverEnd?: () => void;
   notificationBell?: ReactNode;
   userPopover?: ReactNode;
-  starCount?: number | null;
-  onlineCount?: number | null;
   appVersion?: string | null;
   updateVersion?: string | null;
   onUpdateClick?: () => void;
-  githubIconPath: string;
-  discordIconPath: string;
 }
 
 export interface AppBarProject {
@@ -218,13 +206,9 @@ export function AppBar({
   onHoverEnd,
   notificationBell,
   userPopover,
-  starCount,
-  onlineCount,
   appVersion,
   updateVersion,
   onUpdateClick,
-  githubIconPath,
-  discordIconPath,
 }: AppBarProps) {
   const { t } = useTranslation('common');
   const sections: AppBarSection[] = [];
@@ -533,31 +517,10 @@ export function AppBar({
         </div>
       ))}
 
-      {/* Bottom section: Notifications + User popover + GitHub + Discord */}
+      {/* Bottom section: Notifications + User popover + version */}
       <div className="mt-auto pt-base flex flex-col items-center gap-4">
         {notificationBell}
         {userPopover}
-        <AppBarSocialLink
-          href="https://github.com/BloopAI/vibe-kanban"
-          label="Star on GitHub"
-          iconPath={githubIconPath}
-          badge={
-            starCount != null && (
-              <>
-                <StarIcon size={10} weight="fill" />
-                {formatStarCount(starCount)}
-              </>
-            )
-          }
-        />
-        <AppBarSocialLink
-          href="https://discord.gg/AC4nwVtJM3"
-          label="Join our Discord"
-          iconPath={discordIconPath}
-          badge={
-            onlineCount != null && (onlineCount > 999 ? '999+' : onlineCount)
-          }
-        />
         {updateVersion ? (
           <Tooltip content={`Update to v${updateVersion}`} side="right">
             <button
