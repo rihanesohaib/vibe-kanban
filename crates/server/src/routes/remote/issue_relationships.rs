@@ -11,7 +11,7 @@ use axum::{
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use crate::{DeploymentImpl, error::ApiError};
+use crate::{DeploymentImpl, error::ApiError, routes::kanban::service};
 
 pub(super) fn router() -> Router<DeploymentImpl> {
     Router::new()
@@ -29,25 +29,33 @@ async fn list_issue_relationships(
     State(deployment): State<DeploymentImpl>,
     Query(query): Query<ListIssueRelationshipsQuery>,
 ) -> Result<ResponseJson<ApiResponse<ListIssueRelationshipsResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let response = client.list_issue_relationships(query.issue_id).await?;
-    Ok(ResponseJson(ApiResponse::success(response)))
+    let issue_relationships = service(&deployment)
+        .list_relationships(query.issue_id)
+        .await?;
+    Ok(ResponseJson(ApiResponse::success(
+        ListIssueRelationshipsResponse {
+            issue_relationships,
+        },
+    )))
 }
 
 async fn create_issue_relationship(
     State(deployment): State<DeploymentImpl>,
     Json(request): Json<CreateIssueRelationshipRequest>,
 ) -> Result<ResponseJson<ApiResponse<MutationResponse<IssueRelationship>>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let response = client.create_issue_relationship(&request).await?;
-    Ok(ResponseJson(ApiResponse::success(response)))
+    let data = service(&deployment).create_relationship(request).await?;
+    Ok(ResponseJson(ApiResponse::success(MutationResponse {
+        data,
+        txid: 0,
+    })))
 }
 
 async fn delete_issue_relationship(
     State(deployment): State<DeploymentImpl>,
     Path(relationship_id): Path<Uuid>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
-    let client = deployment.remote_client()?;
-    client.delete_issue_relationship(relationship_id).await?;
+    service(&deployment)
+        .delete_relationship(relationship_id)
+        .await?;
     Ok(ResponseJson(ApiResponse::success(())))
 }

@@ -13,6 +13,7 @@ use axum::{
     routing::{delete, get, patch, post},
 };
 use deployment::Deployment;
+use services::services::local_kanban;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
@@ -50,7 +51,13 @@ pub fn router() -> Router<DeploymentImpl> {
 async fn list_organizations(
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<ListOrganizationsResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
+    let Ok(client) = deployment.remote_client() else {
+        return Ok(ResponseJson(ApiResponse::success(
+            ListOrganizationsResponse {
+                organizations: vec![local_kanban::local_organization()],
+            },
+        )));
+    };
 
     let response = client.list_organizations().await?;
 
@@ -185,7 +192,11 @@ async fn list_members(
     State(deployment): State<DeploymentImpl>,
     Path(org_id): Path<Uuid>,
 ) -> Result<ResponseJson<ApiResponse<ListMembersResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
+    let Ok(client) = deployment.remote_client() else {
+        return Ok(ResponseJson(ApiResponse::success(ListMembersResponse {
+            members: vec![local_kanban::local_member()],
+        })));
+    };
 
     let response = client.list_members(org_id).await?;
 

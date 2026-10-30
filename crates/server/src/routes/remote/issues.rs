@@ -11,7 +11,7 @@ use axum::{
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use crate::{DeploymentImpl, error::ApiError};
+use crate::{DeploymentImpl, error::ApiError, routes::kanban::service};
 
 pub(super) fn router() -> Router<DeploymentImpl> {
     Router::new()
@@ -27,36 +27,49 @@ async fn list_issues(
     State(deployment): State<DeploymentImpl>,
     Query(query): Query<ListIssuesQuery>,
 ) -> Result<ResponseJson<ApiResponse<ListIssuesResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let response = client.list_issues(query.project_id).await?;
-    Ok(ResponseJson(ApiResponse::success(response)))
+    let issues = service(&deployment).list_issues(query.project_id).await?;
+    let total_count = issues.len();
+    Ok(ResponseJson(ApiResponse::success(ListIssuesResponse {
+        issues,
+        total_count,
+        limit: total_count,
+        offset: 0,
+    })))
 }
 
 async fn search_issues(
     State(deployment): State<DeploymentImpl>,
     Json(request): Json<SearchIssuesRequest>,
 ) -> Result<ResponseJson<ApiResponse<ListIssuesResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let response = client.search_issues(&request).await?;
-    Ok(ResponseJson(ApiResponse::success(response)))
+    let (issues, total_count) = service(&deployment).search_issues(&request).await?;
+    Ok(ResponseJson(ApiResponse::success(ListIssuesResponse {
+        limit: request
+            .limit
+            .map(|limit| limit.max(0) as usize)
+            .unwrap_or(total_count),
+        offset: request.offset.unwrap_or(0).max(0) as usize,
+        issues,
+        total_count,
+    })))
 }
 
 async fn get_issue(
     State(deployment): State<DeploymentImpl>,
     Path(issue_id): Path<Uuid>,
 ) -> Result<ResponseJson<ApiResponse<Issue>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let response = client.get_issue(issue_id).await?;
-    Ok(ResponseJson(ApiResponse::success(response)))
+    let issue = service(&deployment).get_issue(issue_id).await?;
+    Ok(ResponseJson(ApiResponse::success(issue)))
 }
 
 async fn create_issue(
     State(deployment): State<DeploymentImpl>,
     Json(request): Json<CreateIssueRequest>,
 ) -> Result<ResponseJson<ApiResponse<MutationResponse<Issue>>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let response = client.create_issue(&request).await?;
-    Ok(ResponseJson(ApiResponse::success(response)))
+    let data = service(&deployment).create_issue(request).await?;
+    Ok(ResponseJson(ApiResponse::success(MutationResponse {
+        data,
+        txid: 0,
+    })))
 }
 
 async fn update_issue(
@@ -64,16 +77,17 @@ async fn update_issue(
     Path(issue_id): Path<Uuid>,
     Json(request): Json<UpdateIssueRequest>,
 ) -> Result<ResponseJson<ApiResponse<MutationResponse<Issue>>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let response = client.update_issue(issue_id, &request).await?;
-    Ok(ResponseJson(ApiResponse::success(response)))
+    let data = service(&deployment).update_issue(issue_id, request).await?;
+    Ok(ResponseJson(ApiResponse::success(MutationResponse {
+        data,
+        txid: 0,
+    })))
 }
 
 async fn delete_issue(
     State(deployment): State<DeploymentImpl>,
     Path(issue_id): Path<Uuid>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
-    let client = deployment.remote_client()?;
-    client.delete_issue(issue_id).await?;
+    service(&deployment).delete_issue(issue_id).await?;
     Ok(ResponseJson(ApiResponse::success(())))
 }

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use utils::response::ApiResponse;
 
-use crate::{DeploymentImpl, error::ApiError};
+use crate::{DeploymentImpl, error::ApiError, routes::kanban::service};
 
 pub fn router() -> Router<DeploymentImpl> {
     Router::new()
@@ -23,14 +23,16 @@ async fn list_pull_requests(
     State(deployment): State<DeploymentImpl>,
     Query(query): Query<ListPullRequestsQuery>,
 ) -> Result<ResponseJson<ApiResponse<ListPullRequestsResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let response = client.list_pull_requests(query.issue_id).await?;
-    Ok(ResponseJson(ApiResponse::success(response)))
+    let pull_requests = service(&deployment)
+        .list_pull_requests_for_issue(query.issue_id)
+        .await?;
+    Ok(ResponseJson(ApiResponse::success(
+        ListPullRequestsResponse { pull_requests },
+    )))
 }
 
 /// Tracks a PR in the local database so `pr_monitor` can poll for status
-/// changes and sync them to the remote. No remote server call is made here;
-/// the actual remote PR creation is handled by the Electric mutation system.
+/// changes.
 #[derive(Debug, Deserialize, Serialize, TS)]
 pub struct LinkPrToIssueRequest {
     pub pr_url: String,

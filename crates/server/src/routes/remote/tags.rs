@@ -9,7 +9,7 @@ use serde::Deserialize;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use crate::{DeploymentImpl, error::ApiError};
+use crate::{DeploymentImpl, error::ApiError, routes::kanban::service};
 
 #[derive(Debug, Deserialize)]
 pub(super) struct ListTagsQuery {
@@ -26,16 +26,16 @@ async fn list_tags(
     State(deployment): State<DeploymentImpl>,
     Query(query): Query<ListTagsQuery>,
 ) -> Result<ResponseJson<ApiResponse<ListTagsResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let response = client.list_tags(query.project_id).await?;
-    Ok(ResponseJson(ApiResponse::success(response)))
+    let tags = service(&deployment).list_tags(query.project_id).await?;
+    Ok(ResponseJson(ApiResponse::success(ListTagsResponse {
+        tags,
+    })))
 }
 
 async fn get_tag(
     State(deployment): State<DeploymentImpl>,
     Path(tag_id): Path<Uuid>,
 ) -> Result<ResponseJson<ApiResponse<Tag>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let response = client.get_tag(tag_id).await?;
-    Ok(ResponseJson(ApiResponse::success(response)))
+    let tag = service(&deployment).get_tag(tag_id).await?;
+    Ok(ResponseJson(ApiResponse::success(tag)))
 }
