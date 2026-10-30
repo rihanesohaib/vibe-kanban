@@ -888,9 +888,9 @@ diffs-container {
    Pierre/Diffs Design Overrides - Match Old @git-diff-view/react Design
    ============================================================================= */
 
-/* Font: Use IBM Plex Mono to match old design */
+/* Font: system monospace for code, system sans for headers */
 diffs-container {
-  --diffs-font-family: "IBM Plex Mono", "SF Mono", Monaco, Consolas, monospace;
+  --diffs-font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --diffs-font-size: 12px;
   --diffs-line-height: 18px;
 }
@@ -899,23 +899,23 @@ diffs-container {
 .light diffs-container,
 diffs-container[data-theme-type="light"] {
   /* Addition colors - soft green (HSL 160 77% 88%) */
-  --diffs-light-addition-color: hsl(160, 77%, 40%);
+  --diffs-light-addition-color: hsl(var(--c-ok));
   --diffs-bg-addition-override: hsl(160, 77%, 88%);
   --diffs-bg-addition-number-override: hsl(160, 77%, 85%);
   --diffs-bg-addition-hover-override: hsl(160, 77%, 82%);
 
   /* Deletion colors - soft red (HSL 10 100% 90%) */
-  --diffs-light-deletion-color: hsl(10, 100%, 45%);
+  --diffs-light-deletion-color: hsl(var(--c-crit));
   --diffs-bg-deletion-override: hsl(10, 100%, 90%);
   --diffs-bg-deletion-number-override: hsl(10, 100%, 87%);
   --diffs-bg-deletion-hover-override: hsl(10, 100%, 84%);
 
-  /* Context/unchanged - white background */
-  --diffs-light-bg: hsl(0, 0%, 100%);
-  --diffs-bg-context-override: hsl(0, 0%, 98%);
+  /* Context/unchanged - surface background */
+  --diffs-light-bg: hsl(var(--c-surface));
+  --diffs-bg-context-override: hsl(var(--c-raised));
 
   /* Line numbers */
-  --diffs-fg-number-override: hsl(0, 0%, 39%);
+  --diffs-fg-number-override: hsl(var(--c-muted));
 }
 
 /* Dark Mode Colors - Match old design */
@@ -933,15 +933,15 @@ diffs-container[data-theme-type="dark"] {
   --diffs-bg-deletion-number-override: hsl(12, 30%, 16%);
   --diffs-bg-deletion-hover-override: hsl(12, 30%, 23%);
 
-  /* Context/unchanged - match app's bg-panel (lighter gray, not black) */
+  /* Context/unchanged - raised graphite surface */
   /* --diffs-bg directly overrides the base since light-dark() may not pick up --diffs-dark-bg */
-  --diffs-bg: hsl(0, 0%, 20%);
-  --diffs-dark-bg: hsl(0, 0%, 20%);
-  --diffs-bg-context-override: hsl(0, 0%, 20%);
-  --diffs-bg-hover-override: hsl(0, 0%, 25%);
+  --diffs-bg: hsl(var(--c-raised));
+  --diffs-dark-bg: hsl(var(--c-raised));
+  --diffs-bg-context-override: hsl(var(--c-raised));
+  --diffs-bg-hover-override: hsl(var(--c-hover));
 
   /* Line numbers */
-  --diffs-fg-number-override: hsl(0, 0%, 56%);
+  --diffs-fg-number-override: hsl(var(--c-muted));
 }
 
 /* =============================================================================

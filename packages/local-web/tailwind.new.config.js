@@ -14,6 +14,9 @@ const radiusMultiplier = 0.25;
 const iconMultiplier = 1.25;
 const chatMaxWidth = '48rem';
 
+const systemSans = ['system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Arial', 'sans-serif'];
+const systemMono = ['ui-monospace', 'SFMono-Regular', '"SF Mono"', 'Menlo', 'Consolas', '"Liberation Mono"', 'monospace'];
+
 function getSize(sizeLabel, multiplier = 1) {
 
   return sizes[sizeLabel] * multiplier + "rem";
@@ -105,16 +108,22 @@ module.exports = {
         high: "hsl(var(--text-high))",
         normal: "hsl(var(--text-normal))",
         low: "hsl(var(--text-low))",
+        lowest: "hsl(var(--text-lowest))",
         // Background colors: bg-primary, bg-secondary, bg-panel
         primary: "hsl(var(--bg-primary))",
         secondary: "hsl(var(--bg-secondary))",
         panel: "hsl(var(--bg-panel))",
+        selected: "hsl(var(--bg-selected))",
+        rail: "hsl(var(--bg-rail))",
         // Accent colors
         brand: "hsl(var(--brand))",
         'brand-hover': "hsl(var(--brand-hover))",
         'brand-secondary': "hsl(var(--brand-secondary))",
+        'brand-accent': "hsl(var(--brand-accent))",
+        kpi: "hsl(var(--kpi))",
         error: "hsl(var(--error))",
         success: "hsl(var(--success))",
+        warning: "hsl(var(--warning-text))",
         merged: "hsl(var(--merged))",
         // Text on accent
         'on-brand': "hsl(var(--text-on-brand))",
@@ -136,9 +145,19 @@ module.exports = {
         base: getSize('base'),
         half: getSize('base', 0.5),
       },
+      boxShadow: {
+        sm: 'var(--shadow-card)',
+        DEFAULT: 'var(--shadow-card)',
+        md: 'var(--shadow-card)',
+        lg: 'var(--shadow-overlay)',
+        xl: 'var(--shadow-overlay)',
+      },
       fontFamily: {
-        'ibm-plex-sans': ['"IBM Plex Sans"', '"Noto Emoji"', 'sans-serif'],
-        'ibm-plex-mono': ['"IBM Plex Mono"', 'monospace'],
+        sans: systemSans,
+        mono: systemMono,
+        // Legacy class names kept so existing components pick up the system stacks
+        'ibm-plex-sans': systemSans,
+        'ibm-plex-mono': systemMono,
       },
       keyframes: {
         "accordion-down": {

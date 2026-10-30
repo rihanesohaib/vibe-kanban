@@ -10,29 +10,35 @@ The new design uses custom CSS variables defined in `../web-core/src/app/styles/
 - `text-high` - Primary text, highest contrast
 - `text-normal` - Standard text
 - `text-low` - Muted/secondary text, placeholders
+- `text-lowest` - Faint text for disabled or decorative hints only
 
 **Background colors**:
 - `bg-primary` - Main background
 - `bg-secondary` - Slightly darker, used for inputs, cards, sidebars
-- `bg-panel` - Panel/elevated surfaces
+- `bg-panel` - Chips, hover fills, subtle raised surfaces
+- `bg-selected` - Selected rows/items (pale blue)
+- `bg-rail` - App rail / top bar
 
-**Accent colors**:
-- `brand` - Orange accent (`hsl(25 82% 54%)`)
-- `error` - Error states
-- `success` - Success states
+**Accent colors** (palette lives in `--c-*` variables in `index.css`; light and dark):
+- `brand` - Action blue for buttons, links and focus (`#0F67CB` light, `#4EA8FF` dark); `text-on-brand` for text on it
+- `brand-accent` - Cisco Blue `#00BCEB` for indicators, progress and active markers; never small text on light backgrounds
+- `kpi` - Numbers/KPIs
+- `error`, `success`, `warning` - Status only (crit, ok, warn text tones)
 
 ### Typography
 
-**Font families**:
-- `font-ibm-plex-sans` - Default sans-serif
-- `font-ibm-plex-mono` - Monospace/code
+**Font families** (local system stacks, no web fonts):
+- `font-sans` - Default sans-serif (`font-ibm-plex-sans` is a legacy alias)
+- `font-mono` - Monospace/code (`font-ibm-plex-mono` is a legacy alias)
 
-**Font sizes** (smaller than typical Tailwind defaults):
-- `text-xs` - 8px
-- `text-sm` - 10px
-- `text-base` - 12px (default)
-- `text-lg` - 14px
-- `text-xl` - 16px
+Numbers render with tabular numerals by default. Use sentence case for titles.
+
+**Font sizes**:
+- `text-xs` - 12px
+- `text-sm` - 14px
+- `text-base` - 16px (default)
+- `text-lg` - 18px
+- `text-xl` - 20px
 
 ### Spacing
 
@@ -43,13 +49,17 @@ Custom spacing tokens:
 
 ### Border Radius
 
-Uses a small radius by default (`--radius: 0.125rem`):
+Uses a small radius by default (`--radius: 0.25rem`):
 - `rounded` - Default small radius
 - `rounded-sm`, `rounded-md`, `rounded-lg` - Progressively larger
 
 ### Focus States
 
-Focus rings use `ring-brand` (orange) and are inset by default.
+Focus rings use `ring-brand` (action blue) and are inset by default.
+
+### Shadows and motion
+
+`shadow-sm`/`shadow`/`shadow-md` are a hairline card shadow in light mode and none in dark mode; `shadow-lg`/`shadow-xl` are for overlays. Keep hovers subtle (`hover:bg-panel`). Animations are disabled under `prefers-reduced-motion`.
 
 ### Example Component Styling
 

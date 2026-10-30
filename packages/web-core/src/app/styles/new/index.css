@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,100..700;1,100..700&family=IBM+Plex+Mono:ital,wght@0,100..700;1,100..700&family=Noto+Emoji:wght@300..700&family=Roboto:wght@500&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -11,41 +9,39 @@ html {
 
 /* 1) THEME TOKENS */
 @layer base {
-  /* Light defaults */
+  /* Palette (light), HSL triplets. Keep hex comments in sync. */
   :root {
     color-scheme: light;
-    --_background: 0 0% 95%;
-    --_foreground: 0 0% 5%;
-    --_primary: 0 0% 5%;
-    --_primary-foreground: 0 0% 100%;
-    --_secondary: 0 0% 95%;
-    --_secondary-foreground: 0 0% 16%;
-    --_muted: 0 0% 89%;
-    --_muted-foreground: 0 0% 56%;
-    --_accent: 0 0% 92%;
-    --_accent-foreground: 0 0% 5%;
-    --_destructive: 0 59% 57%;
-    --_destructive-foreground: 0 0% 100%;
-    --_border: 0 0% 85%;
-    --_input: 0 0% 96%;
-    --_ring: 0 0% 5%;
-    --_radius: 0.125rem;
 
-    /* Status (light) */
-    --_success: 117 38% 50%;
-    --_success-foreground: 117 38% 20%;
-    --_warning: 32 95% 44%;
-    --_warning-foreground: 32 95% 14%;
-    --_info: 217 91% 60%;
-    --_info-foreground: 0 0% 5%;
-    --_neutral: 0 0% 92%;
-    --_neutral-foreground: 0 0% 5%;
+    --c-page: 210 12.5% 96.9%; /* #F6F7F8 */
+    --c-surface: 0 0% 100%; /* #FFFFFF */
+    --c-raised: 210 20% 98%; /* #F9FAFB */
+    --c-line: 214.3 13.2% 89.6%; /* #E1E4E8 */
+    --c-line2: 210 20% 94.1%; /* #EDF0F3 */
+    --c-ink: 213.3 25% 14.1%; /* #1B232D */
+    --c-ink-soft: 211.2 18.8% 26.1%; /* #36424F */
+    --c-muted: 211 13.5% 42.2%; /* #5D6B7A */
+    --c-faint: 211.2 12% 59%; /* #8A96A3 */
+    --c-action: 211.9 86.2% 42.7%; /* #0F67CB */
+    --c-action-hover: 212 86.2% 37.1%; /* #0D59B0 */
+    --c-action-deep: 211.9 86.8% 32.7%; /* #0B4F9C */
+    --c-action-ink: 0 0% 100%; /* #FFFFFF */
+    --c-kpi: 197.7 89.2% 36.5%; /* #0A7FB0 */
+    --c-hover: 210 27.3% 95.7%; /* #F1F4F7 */
+    --c-selected: 213 76.9% 94.9%; /* #E8F1FC */
+    --c-chip: 210 27.3% 95.7%; /* #F1F4F7 */
+    --c-rail: 210 12.5% 96.9%; /* #F6F7F8 */
+    /* Cisco Blue: indicators and progress only, never small text on light */
+    --c-accent: 192 100% 46.1%; /* #00BCEB */
+    --c-ok: 137.1 65.1% 33.7%; /* #1E8E3E */
+    --c-warn: 40.3 100% 44.9%; /* #E59A00 */
+    --c-warn-text: 39 100% 30.2%; /* #9A6400 */
+    --c-crit: 2.9 65.1% 49.4%; /* #D0342C */
+    --c-crit-text: 2.9 65.1% 49.4%; /* #D0342C */
+    --c-merged: 271 81% 46%;
 
-    /* Console (light) */
-    --_console-background: 0 0% 100%;
-    --_console-foreground: 0 0% 5%;
-    --_console-success: 117 38% 50%;
-    --_console-error: 0 59% 57%;
+    --shadow-card: 0 1px 2px #07182d0d;
+    --shadow-overlay: 0 4px 12px #07182d14, 0 1px 2px #07182d0d;
 
     /* Syntax highlighting (light) */
     --_syntax-keyword: #d73a49;
@@ -57,97 +53,40 @@ html {
     --_syntax-tag: #22863a;
     --_syntax-punctuation: #24292e;
     --_syntax-deleted: #b31d28;
-
-    /* Text (light) */
-    --text-high: 0 0% 5%;
-    --text-normal: 0 0% 20%;
-    --text-low: 0 0% 39%;
-
-    /* Background (light) - with VS Code overrides */
-    --_bg-primary-default: 0 0% 100%;
-    --_bg-secondary-default: 0 0% 95%;
-    --_bg-panel-default: 0 0% 89%;
-    --bg-primary: var(--vscode-editor-background, var(--_bg-primary-default));
-    --bg-secondary: var(
-      --vscode-editorWidget-background,
-      var(--_bg-secondary-default)
-    );
-    --bg-panel: var(--vscode-input-background, var(--_bg-panel-default));
-
-    /* Accent (light) */
-    --brand: 25 82% 54%;
-    --brand-hover: 25 75% 62%;
-    --brand-secondary: 25 82% 37%;
-    --error: 0 59% 57%;
-    --success: 117 38% 50%;
-    --merged: 271 81% 46%;
-
-    /* Text on accent */
-    --text-on-brand: 0 0% 100%;
   }
 
-  /* Dark mode */
+  /* Palette (dark): neutral graphite */
   .dark {
     color-scheme: dark;
 
-    /* Internal variables (dark) - needed for public tokens */
-    --_background: 0 0% 13%;
-    --_foreground: 0 0% 96%;
-    --_primary: 240 4.8% 95.9%;
-    --_primary-foreground: 240 5.9% 10%;
-    --_secondary: 0 0% 12%;
-    --_secondary-foreground: 0 0% 77%;
-    --_muted: 0 0% 16%;
-    --_muted-foreground: 0 0% 64%;
-    --_accent: 0 0% 20%;
-    --_accent-foreground: 0 0% 96%;
-    --_destructive: 0 59% 57%;
-    --_destructive-foreground: 0 0% 96%;
-    --_border: 0 0% 20%;
-    --_input: 0 0% 20%;
-    --_ring: 0 0% 77%;
+    --c-page: 210 4.3% 9%; /* #161718 */
+    --c-surface: 210 6.2% 12.5%; /* #1E2022 */
+    --c-raised: 210 7.5% 15.7%; /* #25282B */
+    --c-line: 210 8.9% 22%; /* #33383D */
+    --c-line2: 210 8.7% 18%; /* #2A2E32 */
+    --c-ink: 214.3 16.3% 91.6%; /* #E6E9ED */
+    --c-ink-soft: 212.3 13.7% 81.4%; /* #C9CFD6 */
+    --c-muted: 211.6 10.4% 64.1%; /* #9AA3AD */
+    --c-faint: 211.6 7.9% 47.3%; /* #6F7882 */
+    --c-action: 209.5 100% 65.3%; /* #4EA8FF */
+    --c-action-hover: 209.4 100% 72.7%; /* #74BBFF */
+    --c-action-deep: 210.7 67.5% 50.6%; /* #2C7FD6 */
+    --c-action-ink: 211.2 67.6% 7.3%; /* #06121F */
+    --c-kpi: 194.1 100% 41%; /* #00A0D1 */
+    --c-hover: 214.3 7.7% 17.8%; /* #2A2D31 */
+    --c-selected: 204.3 62.7% 14.7%; /* #0E2A3D */
+    --c-chip: 214.3 7.7% 17.8%; /* #2A2D31 */
+    --c-rail: 210 5.3% 7.5%; /* #121314 */
+    --c-accent: 192 100% 46.1%; /* #00BCEB */
+    --c-ok: 137.1 65.1% 33.7%; /* #1E8E3E */
+    --c-warn: 40.3 100% 44.9%; /* #E59A00 */
+    --c-warn-text: 40.3 100% 44.9%; /* #E59A00 */
+    --c-crit: 2.9 65.1% 49.4%; /* #D0342C */
+    --c-crit-text: 3.2 85.1% 65.9%; /* #F2665E */
+    --c-merged: 271 81% 66%;
 
-    /* Status (dark) */
-    --_success: 117 38% 50%;
-    --_success-foreground: 117 38% 90%;
-    --_warning: 32.2 95% 44.1%;
-    --_warning-foreground: 32.2 95% 90%;
-    --_info: 217.2 91.2% 59.8%;
-    --_info-foreground: 217.2 91.2% 90%;
-    --_neutral: 0 0% 20%;
-    --_neutral-foreground: 0 0% 90%;
-
-    /* Text (dark) */
-    --text-high: 0 0% 96%;
-    --text-normal: 0 0% 77%;
-    --text-low: 0 0% 56%;
-
-    /* Background (dark) - with VS Code overrides */
-    --_bg-primary-default: 0 0% 13%;
-    --_bg-secondary-default: 0 0% 11%;
-    --_bg-panel-default: 0 0% 16%;
-    --bg-primary: var(--vscode-editor-background, var(--_bg-primary-default));
-    --bg-secondary: var(
-      --vscode-editorWidget-background,
-      var(--_bg-secondary-default)
-    );
-    --bg-panel: var(--vscode-input-background, var(--_bg-panel-default));
-
-    /* Accent (dark) */
-    --brand: 25 82% 54%;
-    --brand-hover: 25 75% 62%;
-    --brand-secondary: 25 82% 37%;
-    --error: 0 59% 57%;
-    --success: 117 38% 50%;
-    --merged: 271 81% 66%;
-
-    /* Text on accent */
-    --text-on-brand: 0 0% 100%;
-    /* Console (dark) */
-    --_console-background: 0 0% 0%;
-    --_console-foreground: 210 40% 98%;
-    --_console-success: 138.5 76.5% 47.7%;
-    --_console-error: 0 84.2% 60.2%;
+    --shadow-card: none;
+    --shadow-overlay: 0 0 0 1px hsl(var(--c-line));
 
     /* Syntax highlighting (dark) */
     --_syntax-keyword: #ff7b72;
@@ -160,11 +99,82 @@ html {
     --_syntax-punctuation: #c9d1d9;
     --_syntax-deleted: #ffdcd7;
   }
+
+  /* Semantic mapping, re-resolved wherever the palette changes */
+  :root,
+  .dark {
+    --_background: var(--c-surface);
+    --_foreground: var(--c-ink);
+    --_primary: var(--c-action);
+    --_primary-foreground: var(--c-action-ink);
+    --_secondary: var(--c-raised);
+    --_secondary-foreground: var(--c-ink-soft);
+    --_muted: var(--c-chip);
+    --_muted-foreground: var(--c-muted);
+    --_accent: var(--c-hover);
+    --_accent-foreground: var(--c-ink);
+    --_destructive: var(--c-crit);
+    --_destructive-foreground: 0 0% 100%;
+    --_border: var(--c-line);
+    --_input: var(--c-surface);
+    --_ring: var(--c-action);
+    --_radius: 0.25rem;
+
+    /* Status */
+    --_success: var(--c-ok);
+    --_success-foreground: var(--c-ok);
+    --_warning: var(--c-warn);
+    --_warning-foreground: var(--c-warn-text);
+    --_info: var(--c-action);
+    --_info-foreground: var(--c-ink);
+    --_neutral: var(--c-chip);
+    --_neutral-foreground: var(--c-ink);
+
+    /* Console */
+    --_console-background: var(--c-surface);
+    --_console-foreground: var(--c-ink);
+    --_console-success: var(--c-ok);
+    --_console-error: var(--c-crit-text);
+
+    /* Text */
+    --text-high: var(--c-ink);
+    --text-normal: var(--c-ink-soft);
+    --text-low: var(--c-muted);
+    --text-lowest: var(--c-faint);
+
+    /* Background - with VS Code overrides */
+    --_bg-primary-default: var(--c-surface);
+    --_bg-secondary-default: var(--c-page);
+    --_bg-panel-default: var(--c-chip);
+    --bg-primary: var(--vscode-editor-background, var(--_bg-primary-default));
+    --bg-secondary: var(
+      --vscode-editorWidget-background,
+      var(--_bg-secondary-default)
+    );
+    --bg-panel: var(--vscode-input-background, var(--_bg-panel-default));
+    --bg-selected: var(--c-selected);
+    --bg-rail: var(--c-rail);
+
+    /* Accent */
+    --brand: var(--c-action);
+    --brand-hover: var(--c-action-hover);
+    --brand-secondary: var(--c-action-deep);
+    --brand-accent: var(--c-accent);
+    --kpi: var(--c-kpi);
+    --error: var(--c-crit-text);
+    --success: var(--c-ok);
+    --warning-text: var(--c-warn-text);
+    --merged: var(--c-merged);
+
+    /* Text on accent */
+    --text-on-brand: var(--c-action-ink);
+  }
 }
 
 /* 2) PUBLIC TOKENS */
 @layer base {
-  :root {
+  :root,
+  .dark {
     --background: var(--vscode-editor-background, var(--_background));
     --foreground: var(--vscode-editor-foreground, var(--_foreground));
 
@@ -271,7 +281,9 @@ html {
   #root {
     @apply min-h-screen;
     @apply font-normal;
-    @apply bg-background text-foreground font-ibm-plex-sans;
+    @apply bg-background text-foreground font-sans;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
   }
 
   *:focus {
@@ -394,7 +406,7 @@ html {
     background: linear-gradient(
       45deg,
       transparent,
-      hsl(var(--brand-secondary)),
+      hsl(var(--brand-accent)),
       transparent
     );
     background-size: 200% 100%;
@@ -436,6 +448,7 @@ html {
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .chat-box-running::before,
     .create-issue-attention::before {
       animation: none;
     }
@@ -474,11 +487,17 @@ html {
   /* Background colors for PWA safe-area */
   html,
   body {
-    background-color: #f2f2f2;
+    background-color: hsl(var(--c-page));
   }
+}
 
-  html.dark body,
-  html.dark {
-    background-color: #212121;
+@media (prefers-reduced-motion: reduce) {
+  *:not(.animate-spin),
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
