@@ -25,6 +25,11 @@ import { repoApi } from '@/shared/lib/api';
 import { resolveCreateModeBootstrap } from '@/features/create-mode/model/createModeBootstrap';
 import { useWorkspaceCreateDefaults } from '@/shared/hooks/useWorkspaceCreateDefaults';
 import { getValidProjectRepoDefaults } from '@/shared/hooks/useProjectRepoDefaults';
+import {
+  getLastCreateRepos,
+  getTabWorkspaceCreateDraftId,
+  rememberLastCreateRepos,
+} from '@/shared/lib/workspaceCreateState';
 import type {
   CreateModeInitialState,
   LinkedIssue,
@@ -179,8 +184,6 @@ function draftReducer(state: DraftState, action: DraftAction): DraftState {
 // Constants
 // ============================================================================
 
-const DRAFT_WORKSPACE_ID = '00000000-0000-0000-0000-000000000001';
-
 function getLatestWorkspaceIdForRemoteProject({
   remoteWorkspaces,
   localWorkspaceIds,
@@ -255,7 +258,8 @@ export function useCreateModeState({
   remoteWorkspacesLoading,
 }: UseCreateModeStateParams): UseCreateModeStateResult {
   const { profiles, config, loading: systemLoading } = useUserSystem();
-  const scratchId = draftId ?? DRAFT_WORKSPACE_ID;
+  const [tabDraftId] = useState(getTabWorkspaceCreateDraftId);
+  const scratchId = draftId ?? tabDraftId;
 
   const {
     scratch,
@@ -294,21 +298,37 @@ export function useCreateModeState({
     if (!profiles) return;
 
     hasInitialized.current = true;
-    const seedState = seedStateRef.current;
     const scratchData: DraftWorkspaceData | undefined =
       scratch?.payload?.type === 'DRAFT_WORKSPACE'
         ? scratch.payload.data
         : undefined;
-
-    void resolveCreateModeBootstrap({
-      seedState,
-      scratchData,
-      defaultExecutorConfig: config?.executor_profile
+    const defaultExecutorConfig: ExecutorConfig | null =
+      config?.executor_profile
         ? {
             executor: config.executor_profile.executor,
             variant: config.executor_profile.variant,
           }
-        : null,
+        : null;
+    // A fresh tab starts from the repos last picked in any tab.
+    const lastCreateRepos =
+      !seedStateRef.current && !scratchData && !draftId
+        ? getLastCreateRepos()
+        : null;
+    const seedState: CreateModeInitialState | null =
+      seedStateRef.current ??
+      (lastCreateRepos
+        ? {
+            preferredRepos: lastCreateRepos,
+            executorConfig: isValidProfile(defaultExecutorConfig)
+              ? defaultExecutorConfig
+              : null,
+          }
+        : null);
+
+    void resolveCreateModeBootstrap({
+      seedState,
+      scratchData,
+      defaultExecutorConfig,
       isValidProfile,
     })
       .then(({ data }) => {
@@ -328,6 +348,7 @@ export function useCreateModeState({
     config?.executor_profile,
     scratch,
     isValidProfile,
+    draftId,
   ]);
 
   // ============================================================================
@@ -504,6 +525,13 @@ export function useCreateModeState({
         data.attachments.length === 0;
 
       if (isEmpty && !scratch) return;
+
+      rememberLastCreateRepos(
+        data.repos.map((repo) => ({
+          repo_id: repo.repo_id,
+          target_branch: repo.target_branch || null,
+        }))
+      );
 
       try {
         await updateScratch({

@@ -9,6 +9,7 @@ import { useUserOrganizations } from '@/shared/hooks/useUserOrganizations';
 import { ScratchType, type DraftWorkspaceData } from 'shared/types';
 import type { Project } from 'shared/remote-types';
 import { splitMessageToTitleDescription } from '@/shared/lib/string';
+import { getTabWorkspaceCreateDraftId } from '@/shared/lib/workspaceCreateState';
 import { cn } from '@/shared/lib/utils';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import {
@@ -55,9 +56,6 @@ import {
 import { useRemoteCloudHostsAppBarModel } from '@/shared/hooks/useRemoteCloudHosts';
 
 export type WorkspaceLayoutMode = 'flat' | 'accordion';
-
-// Fixed UUID for the universal workspace draft (same as in useCreateModeState.ts)
-const DRAFT_WORKSPACE_ID = '00000000-0000-0000-0000-000000000001';
 
 const PAGE_SIZE = 50;
 const NO_PROJECT_ID = '__no_project__';
@@ -548,10 +546,11 @@ export function WorkspacesSidebarContainer({
     }
   }, [isSearching, hasMoreWorkspaces]);
 
-  // Read persisted draft for sidebar placeholder
+  // Read this tab's persisted draft for the sidebar placeholder
+  const [draftWorkspaceId] = useState(getTabWorkspaceCreateDraftId);
   const { scratch: draftScratch } = useScratch(
     ScratchType.DRAFT_WORKSPACE,
-    DRAFT_WORKSPACE_ID
+    draftWorkspaceId
   );
 
   // Extract draft title from persisted scratch
