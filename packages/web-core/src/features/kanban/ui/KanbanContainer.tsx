@@ -30,6 +30,7 @@ import {
 } from '../model/hooks/useKanbanFilters';
 import {
   bulkUpdateIssues,
+  isLocalKanbanMode,
   type BulkUpdateIssueItem,
 } from '@/shared/lib/remoteApi';
 import { PlusIcon, DotsThreeIcon } from '@phosphor-icons/react';
@@ -127,6 +128,7 @@ export function KanbanContainer() {
   const { t } = useTranslation('common');
   const appNavigation = useAppNavigation();
   const routeState = useCurrentKanbanRouteState();
+  const localKanban = isLocalKanbanMode();
 
   // Get data from contexts (set up by WorkspacesLayout)
   const {
@@ -1046,7 +1048,11 @@ export function KanbanContainer() {
                               description={issue.description}
                               priority={issue.priority}
                               tags={getTagObjectsForIssue(issue.id)}
-                              assignees={issueAssigneesMap[issue.id] ?? []}
+                              assignees={
+                                localKanban
+                                  ? undefined
+                                  : (issueAssigneesMap[issue.id] ?? [])
+                              }
                               pullRequests={issueCardPullRequests}
                               relationships={resolveRelationshipsForIssue(
                                 issue.id,
@@ -1059,10 +1065,14 @@ export function KanbanContainer() {
                                 e.stopPropagation();
                                 handleCardPriorityClick(issue.id);
                               }}
-                              onAssigneeClick={(e) => {
-                                e.stopPropagation();
-                                handleCardAssigneeClick(issue.id);
-                              }}
+                              onAssigneeClick={
+                                localKanban
+                                  ? undefined
+                                  : (e) => {
+                                      e.stopPropagation();
+                                      handleCardAssigneeClick(issue.id);
+                                    }
+                              }
                               onMoreActionsClick={() =>
                                 handleCardMoreActionsClick(issue.id)
                               }
@@ -1132,7 +1142,7 @@ export function KanbanContainer() {
               statuses={listViewStatuses}
               items={items}
               issueMap={issueMap}
-              issueAssigneesMap={issueAssigneesMap}
+              issueAssigneesMap={localKanban ? undefined : issueAssigneesMap}
               getTagObjectsForIssue={getTagObjectsForIssue}
               getResolvedRelationshipsForIssue={
                 getResolvedRelationshipsForIssue

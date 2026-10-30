@@ -92,7 +92,8 @@ interface IssueCommentsSectionProps {
   onCancelEdit: () => void;
   onDeleteComment: (id: string) => void;
   reactionsByCommentId: Map<string, ReactionGroup[]>;
-  onToggleReaction: (commentId: string, emoji: string) => void;
+  /** Omit to hide reactions. */
+  onToggleReaction?: (commentId: string, emoji: string) => void;
   onReply: (authorName: string, message: string) => void;
   isLoading?: boolean;
   commentEditorRef?: Ref<unknown>;
@@ -163,7 +164,11 @@ export function IssueCommentsSection({
               onCancelEdit={onCancelEdit}
               onDelete={() => onDeleteComment(comment.id)}
               reactions={reactionsByCommentId.get(comment.id) ?? []}
-              onToggleReaction={(emoji) => onToggleReaction(comment.id, emoji)}
+              onToggleReaction={
+                onToggleReaction
+                  ? (emoji) => onToggleReaction(comment.id, emoji)
+                  : undefined
+              }
               onReply={() => onReply(comment.authorName, comment.message)}
               renderEditor={renderEditor}
             />
@@ -175,7 +180,7 @@ export function IssueCommentsSection({
           {...dropzoneProps?.getRootProps()}
           className="relative flex flex-col gap-double bg-secondary border border-border rounded-sm p-double"
         >
-          <input {...dropzoneProps?.getInputProps()} />
+          {dropzoneProps && <input {...dropzoneProps.getInputProps()} />}
           {renderEditor({
             value: commentInput,
             onChange: onCommentInputChange,
@@ -256,7 +261,7 @@ interface CommentItemProps {
   onCancelEdit: () => void;
   onDelete: () => void;
   reactions: ReactionGroup[];
-  onToggleReaction: (emoji: string) => void;
+  onToggleReaction?: (emoji: string) => void;
   onReply: () => void;
   renderEditor: (props: IssueCommentsEditorProps) => ReactNode;
 }
@@ -361,12 +366,12 @@ function CommentItem({
       <div className="flex items-center gap-base flex-wrap">
         {/* Existing reactions */}
         <TooltipProvider>
-          {reactions.map((reaction) => (
+          {(onToggleReaction ? reactions : []).map((reaction) => (
             <Tooltip key={reaction.emoji}>
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  onClick={() => onToggleReaction(reaction.emoji)}
+                  onClick={() => onToggleReaction?.(reaction.emoji)}
                   className={cn(
                     'flex items-center gap-half px-base py-half rounded-sm',
                     'border transition-colors',
@@ -387,14 +392,16 @@ function CommentItem({
         </TooltipProvider>
 
         {/* Add reaction button */}
-        <EmojiPicker onSelect={onToggleReaction}>
-          <button
-            type="button"
-            className="size-6 flex items-center justify-center text-low hover:text-normal rounded-sm hover:bg-secondary transition-colors"
-          >
-            <SmileyIcon size={16} />
-          </button>
-        </EmojiPicker>
+        {onToggleReaction && (
+          <EmojiPicker onSelect={onToggleReaction}>
+            <button
+              type="button"
+              className="size-6 flex items-center justify-center text-low hover:text-normal rounded-sm hover:bg-secondary transition-colors"
+            >
+              <SmileyIcon size={16} />
+            </button>
+          </EmojiPicker>
+        )}
 
         {/* Reply button */}
         <button

@@ -46,6 +46,7 @@ import { useAzureAttachments } from '@/shared/hooks/useAzureAttachments';
 import {
   commitIssueAttachments,
   deleteAttachment,
+  isLocalKanbanMode,
 } from '@/shared/lib/remoteApi';
 import {
   extractAttachmentIds,
@@ -79,6 +80,7 @@ export function KanbanIssuePanelContainer({
   onExpectIssueOpen,
 }: KanbanIssuePanelContainerProps) {
   const { t } = useTranslation('common');
+  const localKanban = isLocalKanbanMode();
   const appNavigation = useAppNavigation();
   const routeState = useCurrentKanbanRouteState();
 
@@ -1040,6 +1042,7 @@ export function KanbanIssuePanelContainer({
       displayId={displayId}
       formData={displayData}
       assigneeUsers={displayAssigneeUsers}
+      showAssignees={!localKanban}
       onFormChange={handlePropertyChange}
       statuses={sortedStatuses}
       tags={tags}
@@ -1082,10 +1085,12 @@ export function KanbanIssuePanelContainer({
       }
       onCopyLink={mode === 'edit' ? handleCopyLink : undefined}
       onMoreActions={mode === 'edit' ? handleMoreActions : undefined}
-      onPasteFiles={onPasteFiles}
+      onPasteFiles={localKanban ? undefined : onPasteFiles}
       localAttachments={localAttachments}
-      dropzoneProps={{ getRootProps, getInputProps, isDragActive }}
-      onBrowseAttachment={openFilePicker}
+      dropzoneProps={
+        localKanban ? undefined : { getRootProps, getInputProps, isDragActive }
+      }
+      onBrowseAttachment={localKanban ? undefined : openFilePicker}
       isUploading={isUploading}
       attachmentError={uploadError}
       onDismissAttachmentError={clearUploadError}

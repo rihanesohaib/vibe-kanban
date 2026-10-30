@@ -19,6 +19,7 @@ import { useAzureAttachments } from '@/shared/hooks/useAzureAttachments';
 import {
   commitCommentAttachments,
   deleteAttachment,
+  isLocalKanbanMode,
 } from '@/shared/lib/remoteApi';
 import {
   extractAttachmentIds,
@@ -57,6 +58,7 @@ export function IssueCommentsSectionContainer({
 
 function IssueCommentsSectionContent() {
   const { t } = useTranslation('common');
+  const localKanban = isLocalKanbanMode();
   const { membersWithProfilesById } = useOrgContext();
   const { projectId } = useProjectContext();
   const issueContext = useIssueContext();
@@ -477,14 +479,16 @@ function IssueCommentsSectionContent() {
       onCancelEdit={handleCancelEdit}
       onDeleteComment={handleDeleteComment}
       reactionsByCommentId={reactionsByCommentId}
-      onToggleReaction={handleToggleReaction}
+      onToggleReaction={localKanban ? undefined : handleToggleReaction}
       onReply={handleReply}
       isLoading={issueContext.isLoading}
       commentEditorRef={commentEditorRef}
-      onPasteFiles={onPasteFiles}
+      onPasteFiles={localKanban ? undefined : onPasteFiles}
       localAttachments={localAttachments}
-      dropzoneProps={{ getRootProps, getInputProps, isDragActive }}
-      onBrowseAttachment={open}
+      dropzoneProps={
+        localKanban ? undefined : { getRootProps, getInputProps, isDragActive }
+      }
+      onBrowseAttachment={localKanban ? undefined : open}
       isUploading={isUploading}
       attachmentError={uploadError}
       onDismissAttachmentError={clearUploadError}

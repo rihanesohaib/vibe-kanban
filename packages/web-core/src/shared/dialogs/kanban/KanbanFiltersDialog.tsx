@@ -9,6 +9,7 @@ import {
 import type { IssuePriority, Tag } from 'shared/remote-types';
 import type { OrganizationMemberWithProfile } from 'shared/types';
 import { cn } from '@/shared/lib/utils';
+import { isLocalKanbanMode } from '@/shared/lib/remoteApi';
 import {
   KANBAN_ASSIGNEE_FILTER_VALUES,
   type KanbanFilterState,
@@ -223,19 +224,21 @@ export function KanbanFiltersDialog({
               onChange={onPrioritiesChange}
             />
 
-            <button
-              type="button"
-              onClick={handleOpenAssigneeDialog}
-              className={cn(
-                'flex items-center gap-half rounded-sm bg-panel px-base py-half',
-                'text-sm text-normal transition-colors hover:bg-secondary'
-              )}
-            >
-              <UsersIcon className="size-icon-xs" weight="bold" />
-              <span>{t('kanban.assignee', 'Assignee')}</span>
-              {filters.assigneeIds.length > 0 &&
-                renderAssigneeBadge(filters.assigneeIds)}
-            </button>
+            {!isLocalKanbanMode() && (
+              <button
+                type="button"
+                onClick={handleOpenAssigneeDialog}
+                className={cn(
+                  'flex items-center gap-half rounded-sm bg-panel px-base py-half',
+                  'text-sm text-normal transition-colors hover:bg-secondary'
+                )}
+              >
+                <UsersIcon className="size-icon-xs" weight="bold" />
+                <span>{t('kanban.assignee', 'Assignee')}</span>
+                {filters.assigneeIds.length > 0 &&
+                  renderAssigneeBadge(filters.assigneeIds)}
+              </button>
+            )}
 
             {tags.length > 0 && (
               <MultiSelectDropdown

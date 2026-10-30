@@ -65,7 +65,8 @@ export interface IssueListRowProps {
   statusColor: string;
   tags: IssueListRowTag[];
   relationships?: IssueListRowRelationship[];
-  assignees: KanbanAssigneeUser[];
+  /** Omit to hide the assignee column. */
+  assignees?: KanbanAssigneeUser[];
   onClick: (e: MouseEvent) => void;
   isSelected: boolean;
   isMultiSelectActive?: boolean;
@@ -182,7 +183,7 @@ export function IssueListRow({
                 )}
               </div>
             )}
-            <KanbanAssignee assignees={assignees} />
+            {assignees && <KanbanAssignee assignees={assignees} />}
             <span className="text-sm text-low w-5 text-right">
               {formatRelativeTime(issue.created_at)}
             </span>
