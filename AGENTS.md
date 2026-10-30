@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `crates/`: Rust workspace crates — `server` (API + bins), `db` (SQLx models/migrations), `executors`, `services`, `utils`, `git` (Git operations), `api-types` (shared API types), `review` (PR review tool), `deployment`, `local-deployment`.
+- `crates/`: Rust workspace crates — `server` (API + bins), `db` (SQLx models/migrations), `executors`, `services`, `utils`, `git` (Git operations), `api-types` (shared API types), `deployment`, `local-deployment`.
 - `packages/local-web/`: Local React + TypeScript app entrypoint (Vite, Tailwind). Shell source in `packages/local-web/src`.
 - `packages/web-core/`: Shared React + TypeScript frontend library used by the web app (`packages/web-core/src`).
 - `shared/`: Generated TypeScript types (`shared/types.ts`), the frozen hand-maintained `shared/remote-types.ts`, and agent tool schemas (`shared/schemas/`). Do not edit generated files directly.

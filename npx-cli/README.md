@@ -17,7 +17,6 @@ Helpful entrypoints:
 ```bash
 npx vibe-kanban --help
 npx vibe-kanban --version
-npx vibe-kanban review --help
 npx vibe-kanban mcp --help
 ```
 

@@ -71,7 +71,6 @@ COPY crates/git/Cargo.toml crates/git/Cargo.toml
 COPY crates/git-host/Cargo.toml crates/git-host/Cargo.toml
 COPY crates/local-deployment/Cargo.toml crates/local-deployment/Cargo.toml
 COPY crates/mcp/Cargo.toml crates/mcp/Cargo.toml
-COPY crates/review/Cargo.toml crates/review/Cargo.toml
 COPY crates/server/Cargo.toml crates/server/Cargo.toml
 COPY crates/server-info/Cargo.toml crates/server-info/Cargo.toml
 COPY crates/services/Cargo.toml crates/services/Cargo.toml
@@ -89,7 +88,6 @@ COPY crates/git/ crates/git/
 COPY crates/git-host/ crates/git-host/
 COPY crates/local-deployment/ crates/local-deployment/
 COPY crates/mcp/ crates/mcp/
-COPY crates/review/ crates/review/
 COPY crates/server/ crates/server/
 COPY crates/server-info/ crates/server-info/
 COPY crates/services/ crates/services/
