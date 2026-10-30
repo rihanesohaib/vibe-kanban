@@ -10,8 +10,6 @@ import {
   DESKTOP_CACHE_DIR,
   LOCAL_DEV_MODE,
   LOCAL_DIST_DIR,
-  R2_BASE_URL,
-  getLatestVersion,
 } from "./download";
 import {
   getTauriPlatform,
@@ -195,24 +193,6 @@ async function extractAndRun(
   return launch(binPath);
 }
 
-function checkForUpdates(): void {
-  const hasValidR2Url = !R2_BASE_URL.startsWith("__");
-  if (LOCAL_DEV_MODE || !hasValidR2Url) {
-    return;
-  }
-
-  getLatestVersion()
-    .then((latest) => {
-      if (latest && latest !== CLI_VERSION) {
-        setTimeout(() => {
-          console.log(`\nUpdate available: ${CLI_VERSION} -> ${latest}`);
-          console.log(`Run: npx vibe-kanban@latest`);
-        }, 2000);
-      }
-    })
-    .catch(() => {});
-}
-
 async function runMcp(args: string[]): Promise<void> {
   await extractAndRun("vibe-kanban-mcp", (bin) => {
     const proc = spawn(bin, buildMcpArgs(args), {
@@ -242,8 +222,6 @@ async function runReview(args: string[]): Promise<void> {
 }
 
 async function runMain(desktopMode: boolean): Promise<void> {
-  checkForUpdates();
-
   const modeLabel = LOCAL_DEV_MODE ? " (local dev)" : "";
   const tauriPlatform = getTauriPlatform(platformDir);
 

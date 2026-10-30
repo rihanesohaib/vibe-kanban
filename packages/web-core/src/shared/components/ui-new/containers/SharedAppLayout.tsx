@@ -28,7 +28,6 @@ import { useUserOrganizations } from '@/shared/hooks/useUserOrganizations';
 import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
-import { useAppUpdateStore } from '@/shared/stores/useAppUpdateStore';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentAppDestination } from '@/shared/hooks/useCurrentAppDestination';
 import {
@@ -70,8 +69,6 @@ export function SharedAppLayout() {
   const { isSignedIn } = useAuth();
   const remoteEnabled = isRemoteEnabled();
   const { appVersion } = useUserSystem();
-  const updateVersion = useAppUpdateStore((s) => s.updateVersion);
-  const restartForUpdate = useAppUpdateStore((s) => s.restart);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isAppBarHovered, setIsAppBarHovered] = useState(false);
   const { hosts: remoteCloudHosts } = useRemoteCloudHostsAppBarModel();
@@ -373,8 +370,6 @@ export function SharedAppLayout() {
                 />
               }
               appVersion={appVersion}
-              updateVersion={updateVersion}
-              onUpdateClick={restartForUpdate ?? undefined}
             />
             {/* Desktop content. */}
             <div className="relative min-h-0 overflow-hidden">
