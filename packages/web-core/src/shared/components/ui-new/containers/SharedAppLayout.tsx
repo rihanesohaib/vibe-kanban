@@ -364,9 +364,7 @@ export function SharedAppLayout() {
               onSignIn={handleSignIn}
               onHoverStart={() => setIsAppBarHovered(true)}
               onHoverEnd={() => setIsAppBarHovered(false)}
-              notificationBell={
-                isSignedIn ? <AppBarNotificationBellContainer /> : undefined
-              }
+              notificationBell={<AppBarNotificationBellContainer />}
               userPopover={
                 <AppBarUserPopoverContainer
                   organizations={organizations}

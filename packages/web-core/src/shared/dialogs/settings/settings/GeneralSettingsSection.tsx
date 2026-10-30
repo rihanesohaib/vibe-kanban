@@ -35,6 +35,7 @@ import {
   useMobileFontScale,
 } from '@/shared/stores/useUiPreferencesStore';
 import { cn, playSound } from '@/shared/lib/utils';
+import { requestBrowserNotificationPermission } from '@/shared/lib/agentAlerts';
 import { PrimaryButton } from '@vibe/ui/components/PrimaryButton';
 import { IconButton } from '@vibe/ui/components/IconButton';
 import {
@@ -777,14 +778,15 @@ export function GeneralSettingsSection() {
           label={t('settings.general.notifications.push.label')}
           description={t('settings.general.notifications.push.helper')}
           checked={draft?.notifications.push_enabled ?? false}
-          onChange={(checked) =>
+          onChange={(checked) => {
+            if (checked) void requestBrowserNotificationPermission();
             updateDraft({
               notifications: {
                 ...draft!.notifications,
                 push_enabled: checked,
               },
-            })
-          }
+            });
+          }}
         />
       </SettingsCard>
 

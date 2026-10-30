@@ -204,14 +204,14 @@
         "description": "Control when and how you receive notifications.",
         "sound": {
           "label": "Sound Notifications",
-          "helper": "Play a sound when workspaces finish running.",
+          "helper": "Play a sound in your browser when an agent finishes, fails or needs your input.",
           "fileLabel": "Sound",
           "filePlaceholder": "Select sound",
           "fileHelper": "Choose the sound to play when tasks complete. Click the volume button to preview."
         },
         "push": {
           "label": "Push Notifications",
-          "helper": "Show system notifications when workspaces finish running."
+          "helper": "Show a browser notification when an agent finishes, fails or needs your input."
         }
       },
       "messageInput": {
