@@ -38,11 +38,14 @@ import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
 import { buildAgentPrompt } from '@/shared/lib/promptMessage';
 import { formatDateShortWithTime } from '@/shared/lib/date';
 import { toPrettyCase } from '@/shared/lib/string';
+import { useTranslation } from 'react-i18next';
 import {
   SessionChatBox,
   type ExecutionStatus,
+  type LastRunOutcome,
   type SessionChatBoxEditorRenderProps,
 } from '@vibe/ui/components/SessionChatBox';
+import { getRunOutcome } from '../model/runOutcome';
 import { ModelSelectorContainer } from '@/shared/components/ModelSelectorContainer';
 import {
   useWorkspacePanelState,
@@ -232,6 +235,45 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
   // Execution state
   const { isAttemptRunning, stopExecution, isStopping, processes } =
     useWorkspaceExecution(workspaceId);
+
+  const { t } = useTranslation('common');
+  const lastRunOutcome = useMemo((): LastRunOutcome | null => {
+    const latestAgentRun = processes
+      .filter(
+        (p) =>
+          p.run_reason === 'codingagent' &&
+          !p.dropped &&
+          (!sessionId || p.session_id === sessionId)
+      )
+      .reduce<(typeof processes)[number] | null>(
+        (latest, p) =>
+          !latest || new Date(p.created_at) >= new Date(latest.created_at)
+            ? p
+            : latest,
+        null
+      );
+    const outcome = getRunOutcome(latestAgentRun);
+    if (!outcome) return null;
+    switch (outcome.kind) {
+      case 'stopped':
+        return {
+          label: t('conversation.runOutcome.stoppedShort'),
+          tone: 'neutral',
+        };
+      case 'interrupted':
+        return {
+          label: t('conversation.runOutcome.interruptedShort'),
+          tone: 'error',
+        };
+      case 'failed':
+        return {
+          label: t('conversation.runOutcome.failedShort', {
+            code: outcome.exitCode,
+          }),
+          tone: 'error',
+        };
+    }
+  }, [processes, sessionId, t]);
 
   // Approvals state
   const { getPendingForProcess } = useApprovals();
@@ -1055,6 +1097,7 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
         hasConflicts,
         conflictedFilesCount,
         onResolveConflicts: handleResolveConflicts,
+        lastRunOutcome,
       }}
       error={sendError}
       agent={effectiveExecutor}

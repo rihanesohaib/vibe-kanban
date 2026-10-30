@@ -54,7 +54,15 @@
     "subagent": {
       "defaultType": "Subagent"
     },
-    "loadingEarlierMessages": "Loading earlier messages"
+    "loadingEarlierMessages": "Loading earlier messages",
+    "runOutcome": {
+      "stopped": "Run stopped by you",
+      "interrupted": "Run interrupted (the service restarted or the agent process was terminated)",
+      "failed": "Run failed (exit {{code}})",
+      "stoppedShort": "Stopped",
+      "interruptedShort": "Interrupted",
+      "failedShort": "Failed (exit {{code}})"
+    }
   },
   "folderPicker": {
     "legend": "Click folder names to navigate • Use action buttons to select",
@@ -520,7 +528,8 @@
     "permissionPlan": "Plan",
     "agent": "Agent",
     "default": "Default",
-    "model": "Model"
+    "model": "Model",
+    "unavailable": "{{model}} (unavailable, using Auto)"
   },
   "crashScreen": {
     "title": "Something went wrong",

@@ -111,6 +111,8 @@ function getToolSummary(
       });
     case 'tool':
       return tool_name || t('conversation.tool');
+    case 'other':
+      return action_type.description || tool_name || t('conversation.tool');
     default:
       return tool_name || t('conversation.tool');
   }

@@ -1,3 +1,4 @@
+import i18n from 'i18next';
 import { NormalizedEntry, PatchType, TokenUsageInfo } from 'shared/types';
 
 import {
@@ -11,6 +12,7 @@ import {
   type ConversationScriptTurn,
   type ConversationTurn,
 } from './deriveConversationTurns';
+import { getRunOutcome, type RunOutcome } from './runOutcome';
 
 export interface DerivedConversationEntriesResult {
   readonly entries: PatchTypeWithKey[];
@@ -28,12 +30,60 @@ interface DeriveConversationEntriesParams {
 function patchWithKey(
   patch: PatchType,
   executionProcessId: string,
-  index: number | 'user' | 'script'
+  index: number | 'user' | 'script' | 'outcome'
 ): PatchTypeWithKey {
   return {
     ...patch,
     patchKey: `${executionProcessId}:${index}`,
     executionProcessId,
+  };
+}
+
+function describeRunOutcome(outcome: RunOutcome): string {
+  switch (outcome.kind) {
+    case 'stopped':
+      return i18n.t('common:conversation.runOutcome.stopped');
+    case 'interrupted':
+      return i18n.t('common:conversation.runOutcome.interrupted');
+    case 'failed':
+      return i18n.t('common:conversation.runOutcome.failed', {
+        code: outcome.exitCode,
+      });
+  }
+}
+
+function makeRunOutcomePatch(
+  executionProcessId: string,
+  outcome: RunOutcome
+): PatchTypeWithKey {
+  const entry: NormalizedEntry = {
+    entry_type:
+      outcome.kind === 'stopped'
+        ? { type: 'system_message' }
+        : { type: 'error_message', error_type: { type: 'other' } },
+    content: describeRunOutcome(outcome),
+    timestamp: null,
+  };
+  return patchWithKey(
+    { type: 'NORMALIZED_ENTRY', content: entry },
+    executionProcessId,
+    'outcome'
+  );
+}
+
+/** A tool call still marked in progress when its run ended never finished. */
+function settleUnfinishedToolUse(entry: PatchTypeWithKey): PatchTypeWithKey {
+  if (entry.type !== 'NORMALIZED_ENTRY') return entry;
+  const entryType = entry.content.entry_type;
+  if (entryType.type !== 'tool_use' || entryType.status.status !== 'created') {
+    return entry;
+  }
+  return {
+    ...entry,
+    content: {
+      ...entry.content,
+      entry_type: { ...entryType, status: { status: 'failed' } },
+    },
   };
 }
 
@@ -57,10 +107,24 @@ function appendAgentTurnEntries(
     );
   }
 
-  turnEntries.push(...turn.visibleEntries);
+  // Derived from the persisted process status, so it survives reloads and
+  // restarts even when the agent produced no output.
+  const outcome = getRunOutcome(turn.process.liveExecutionProcess);
+
+  turnEntries.push(
+    ...(outcome
+      ? turn.visibleEntries.map(settleUnfinishedToolUse)
+      : turn.visibleEntries)
+  );
 
   if (turn.shouldEmitLoading) {
     turnEntries.push(makeLoadingPatch(turn.process.executionProcess.id));
+  }
+
+  if (outcome) {
+    turnEntries.push(
+      makeRunOutcomePatch(turn.process.executionProcess.id, outcome)
+    );
   }
 }
 

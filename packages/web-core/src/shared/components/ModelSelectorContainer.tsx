@@ -9,8 +9,8 @@ import {
   SlidersHorizontalIcon,
   type Icon,
 } from '@phosphor-icons/react';
-import type { BaseCodingAgent, ExecutorConfig, ModelInfo } from 'shared/types';
-import { PermissionPolicy } from 'shared/types';
+import type { ExecutorConfig, ModelInfo } from 'shared/types';
+import { BaseCodingAgent, PermissionPolicy } from 'shared/types';
 import { toPrettyCase } from '@/shared/lib/string';
 import {
   getModelKey,
@@ -43,6 +43,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTriggerButton,
 } from '@vibe/ui/components/Dropdown';
+
+/** Agents whose discovered model list is exhaustive for the signed-in account. */
+const AGENTS_WITH_DISCOVERED_MODEL_LIST: ReadonlySet<BaseCodingAgent> = new Set(
+  [BaseCodingAgent.CURSOR_AGENT]
+);
 
 interface ModelSelectorContainerProps {
   agent: BaseCodingAgent | null;
@@ -117,7 +122,17 @@ export function ModelSelectorContainer({
   }, [streamError]);
 
   const baseConfig = streamConfig;
-  const config = appendPresetModel(baseConfig, presetOptions?.model_id);
+  // Once discovery succeeds the list is exactly what the account can run, so
+  // a saved model outside it is shown as unavailable rather than offered.
+  const hasAuthoritativeModelList =
+    agent !== null &&
+    AGENTS_WITH_DISCOVERED_MODEL_LIST.has(agent) &&
+    !loadingModels &&
+    !streamError &&
+    (baseConfig?.models.length ?? 0) > 0;
+  const config = hasAuthoritativeModelList
+    ? baseConfig
+    : appendPresetModel(baseConfig, presetOptions?.model_id);
 
   const availableProviderIds = useMemo(
     () => config?.providers.map((item) => item.id) ?? [],
@@ -173,8 +188,26 @@ export function ModelSelectorContainer({
     ? presetModelId
     : null;
 
+  const requestedModelId =
+    configModelId ?? resolvedPresetModelId ?? defaultModelId;
+  const unavailableModelId =
+    hasAuthoritativeModelList &&
+    config &&
+    requestedModelId &&
+    !getSelectedModel(config.models, selectedProviderId, requestedModelId)
+      ? requestedModelId
+      : null;
+
   const selectedModelId = (() => {
-    const candidate = configModelId ?? resolvedPresetModelId ?? defaultModelId;
+    const candidate = requestedModelId;
+    if (unavailableModelId && config) {
+      return resolveDefaultModelId(
+        config.models,
+        selectedProviderId,
+        config.default_model,
+        hasProviders
+      );
+    }
     if (!candidate || !config || !selectedProviderId) return candidate;
     const hasMatch = isModelAvailable(config, selectedProviderId, candidate);
     return hasMatch
@@ -415,7 +448,9 @@ export function ModelSelectorContainer({
     : null;
   const modelLabelBase = loadingModels
     ? loadingLabel
-    : (displaySelectedModel?.name ?? selectedModelId ?? defaultLabel);
+    : unavailableModelId
+      ? t('modelSelector.unavailable', { model: unavailableModelId })
+      : (displaySelectedModel?.name ?? selectedModelId ?? defaultLabel);
   const modelLabel = reasoningLabel
     ? `${modelLabelBase} · ${reasoningLabel}`
     : modelLabelBase;

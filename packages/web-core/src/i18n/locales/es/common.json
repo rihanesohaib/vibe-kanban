@@ -62,7 +62,15 @@
     "subagent": {
       "defaultType": "Subagente"
     },
-    "loadingEarlierMessages": "Cargando mensajes anteriores"
+    "loadingEarlierMessages": "Cargando mensajes anteriores",
+    "runOutcome": {
+      "stopped": "Ejecución detenida por ti",
+      "interrupted": "Ejecución interrumpida (el servicio se reinició o el proceso del agente terminó)",
+      "failed": "La ejecución falló (código {{code}})",
+      "stoppedShort": "Detenida",
+      "interruptedShort": "Interrumpida",
+      "failedShort": "Falló (código {{code}})"
+    }
   },
   "language": {
     "browserDefault": "Predeterminado del navegador"
@@ -506,7 +514,8 @@
     "permissionPlan": "Plan",
     "agent": "Agente",
     "default": "Predeterminado",
-    "model": "Modelo"
+    "model": "Modelo",
+    "unavailable": "{{model}} (no disponible, usando Auto)"
   },
   "crashScreen": {
     "title": "Algo salió mal",

@@ -240,8 +240,12 @@ pub trait ContainerService {
 
     /// Finalize workspace execution by sending notifications
     async fn finalize_task(&self, ctx: &ExecutionContext) {
-        // Skip notification if process was intentionally killed by user
-        if matches!(ctx.execution_process.status, ExecutionProcessStatus::Killed) {
+        // Skip notification if the user stopped the process or the service
+        // interrupted it while shutting down (failed without an exit code)
+        if matches!(ctx.execution_process.status, ExecutionProcessStatus::Killed)
+            || (ctx.execution_process.status == ExecutionProcessStatus::Failed
+                && ctx.execution_process.exit_code.is_none())
+        {
             return;
         }
 

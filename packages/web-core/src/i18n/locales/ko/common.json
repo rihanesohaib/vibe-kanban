@@ -62,7 +62,15 @@
     "subagent": {
       "defaultType": "서브에이전트"
     },
-    "loadingEarlierMessages": "이전 메시지 불러오는 중"
+    "loadingEarlierMessages": "이전 메시지 불러오는 중",
+    "runOutcome": {
+      "stopped": "사용자가 실행을 중지했습니다",
+      "interrupted": "실행이 중단되었습니다 (서비스 재시작 또는 에이전트 프로세스 종료)",
+      "failed": "실행 실패 (종료 코드 {{code}})",
+      "stoppedShort": "중지됨",
+      "interruptedShort": "중단됨",
+      "failedShort": "실패 (종료 코드 {{code}})"
+    }
   },
   "language": {
     "browserDefault": "브라우저 기본값"
@@ -506,7 +514,8 @@
     "permissionPlan": "계획",
     "agent": "에이전트",
     "default": "기본값",
-    "model": "모델"
+    "model": "모델",
+    "unavailable": "{{model}} (사용 불가, Auto 사용)"
   },
   "crashScreen": {
     "title": "문제가 발생했습니다",

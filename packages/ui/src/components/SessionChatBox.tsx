@@ -16,6 +16,7 @@ import {
   PencilSimpleIcon,
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
+import { cn } from '../lib/cn';
 import { ChatBoxBase, VisualVariant, type DropzoneProps } from './ChatBoxBase';
 import { type EditorProps, type ExecutorProps } from './CreateChatBox';
 import type { AskUserQuestionItem, QuestionAnswer } from 'shared/types';
@@ -86,6 +87,11 @@ interface ToolbarActionsProps {
   items: SessionToolbarActionItem[];
 }
 
+export interface LastRunOutcome {
+  label: string;
+  tone: 'neutral' | 'error';
+}
+
 interface StatsProps {
   filesChanged?: number;
   linesAdded?: number;
@@ -93,6 +99,8 @@ interface StatsProps {
   hasConflicts?: boolean;
   conflictedFilesCount?: number;
   onResolveConflicts?: () => void;
+  /** Shown when the latest run did not complete normally */
+  lastRunOutcome?: LastRunOutcome | null;
 }
 
 interface FeedbackModeProps {
@@ -710,6 +718,22 @@ export function SessionChatBox<TExecutor extends string = string>({
                 </span>
               ) : (
                 <>
+                  {!isRunning && stats?.lastRunOutcome && (
+                    <span
+                      className={cn(
+                        'flex items-center gap-1 text-sm min-w-0 shrink-0',
+                        stats.lastRunOutcome.tone === 'error'
+                          ? 'text-error'
+                          : 'text-low'
+                      )}
+                      title={stats.lastRunOutcome.label}
+                    >
+                      <WarningIcon className="size-icon-sm flex-shrink-0" />
+                      <span className="truncate">
+                        {stats.lastRunOutcome.label}
+                      </span>
+                    </span>
+                  )}
                   {stats?.hasConflicts && (
                     <button
                       type="button"
