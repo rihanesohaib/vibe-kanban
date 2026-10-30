@@ -49,8 +49,7 @@
       "title": "Aucun serveur de développement en cours d'exécution",
       "setupTitle": "Vous devez configurer un script de serveur de développement pour utiliser la fonction d'aperçu",
       "setupPrompt": "Pour utiliser l'aperçu en direct et le clic-pour-éditer, veuillez ajouter un script de serveur de développement à ce projet.",
-      "editDevScript": "Modifier le script du serveur de développement",
-      "learnMore": "En savoir plus sur le test des applications"
+      "editDevScript": "Modifier le script du serveur de développement"
     },
     "logs": {
       "label": "Logs",
@@ -256,7 +255,7 @@
       "prMerged": "La PR #{{number}} est déjà fusionnée",
       "loginRequired": {
         "title": "Connectez-vous pour gérer les actions git",
-        "description": "Connectez-vous à Vibe Kanban pour pouvoir pousser des branches, fusionner des modifications ou ouvrir des pull requests pour cette tâche.",
+        "description": "Connectez-vous à JARVIS pour pouvoir pousser des branches, fusionner des modifications ou ouvrir des pull requests pour cette tâche.",
         "action": "Se connecter"
       }
     },

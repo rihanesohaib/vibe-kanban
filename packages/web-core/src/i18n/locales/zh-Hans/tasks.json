@@ -52,8 +52,7 @@
       "title": "没有运行开发服务器",
       "setupTitle": "必须设置开发服务器脚本才能使用预览功能",
       "setupPrompt": "要使用实时预览和点击编辑，请为此项目添加开发服务器脚本。",
-      "editDevScript": "编辑开发服务器脚本",
-      "learnMore": "了解更多关于测试应用程序的信息"
+      "editDevScript": "编辑开发服务器脚本"
     },
     "logs": {
       "label": "日志",
@@ -177,7 +176,7 @@
       "prMerged": "PR #{{number}} 已合并",
       "loginRequired": {
         "title": "登录以管理 git 操作",
-        "description": "登录 Vibe Kanban，以便您可以推送分支、合并更改或为此任务打开拉取请求。",
+        "description": "登录 JARVIS，以便您可以推送分支、合并更改或为此任务打开拉取请求。",
         "action": "登录"
       }
     },

@@ -169,7 +169,7 @@
       "prMerged": "PR #{{number}}은(는) 이미 병합되었습니다",
       "loginRequired": {
         "title": "Git 작업을 관리하려면 로그인하세요",
-        "description": "이 작업에서 브랜치를 푸시하고 변경 사항을 병합하거나 풀 리퀘스트를 만들려면 Vibe Kanban에 로그인하세요.",
+        "description": "이 작업에서 브랜치를 푸시하고 변경 사항을 병합하거나 풀 리퀘스트를 만들려면 JARVIS에 로그인하세요.",
         "action": "로그인"
       }
     },
@@ -214,8 +214,7 @@
       "setupTitle": "미리보기 기능을 사용하려면 개발 서버 스크립트를 설정해야 합니다",
       "setupPrompt": "라이브 미리보기 및 클릭하여 편집을 사용하려면 이 프로젝트에 개발 서버 스크립트를 추가하세요.",
       "title": "실행 중인 개발 서버 없음",
-      "editDevScript": "개발 서버 스크립트 편집",
-      "learnMore": "애플리케이션 테스트에 대해 자세히 알아보기"
+      "editDevScript": "개발 서버 스크립트 편집"
     },
     "toolbar": {
       "copyUrl": "URL 복사",

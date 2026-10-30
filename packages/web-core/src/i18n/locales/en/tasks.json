@@ -49,8 +49,7 @@
       "title": "No dev server running",
       "setupTitle": "You must set up a dev server script to use the preview feature",
       "setupPrompt": "To use the live preview and click-to-edit, please add a dev server script to this project.",
-      "editDevScript": "Edit Dev Server Script",
-      "learnMore": "Learn more about testing applications"
+      "editDevScript": "Edit Dev Server Script"
     },
     "logs": {
       "label": "Logs",
@@ -256,7 +255,7 @@
       "prMerged": "PR #{{number}} is already merged",
       "loginRequired": {
         "title": "Sign in to manage git actions",
-        "description": "Sign in to Vibe Kanban so you can push branches, merge changes, or open pull requests for this task.",
+        "description": "Sign in to JARVIS so you can push branches, merge changes, or open pull requests for this task.",
         "action": "Sign in"
       }
     },

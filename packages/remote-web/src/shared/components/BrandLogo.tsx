@@ -5,7 +5,7 @@ interface BrandLogoProps {
 
 export function BrandLogo({
   className = "h-8 w-auto",
-  alt = "Agent Control Center",
+  alt = "JARVIS",
 }: BrandLogoProps) {
   return (
     <picture>

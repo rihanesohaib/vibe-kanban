@@ -172,7 +172,7 @@
       "changeTarget": "Cambiar destino",
       "loginRequired": {
         "title": "Inicia sesión para gestionar acciones de Git",
-        "description": "Inicia sesión en Vibe Kanban para enviar ramas, fusionar cambios o abrir pull requests para esta tarea.",
+        "description": "Inicia sesión en JARVIS para enviar ramas, fusionar cambios o abrir pull requests para esta tarea.",
         "action": "Iniciar sesión"
       }
     },
@@ -218,8 +218,7 @@
       "setupTitle": "Debes configurar un script de servidor de desarrollo para usar la función de vista previa",
       "setupPrompt": "Para usar la vista previa en vivo y la función de hacer clic y editar, por favor agrega un script de servidor de desarrollo a este proyecto.",
       "title": "No hay servidor de desarrollo en ejecución",
-      "editDevScript": "Editar Script de Servidor de Desarrollo",
-      "learnMore": "Más información sobre cómo probar aplicaciones"
+      "editDevScript": "Editar Script de Servidor de Desarrollo"
     },
     "toolbar": {
       "copyUrl": "Copiar URL",
