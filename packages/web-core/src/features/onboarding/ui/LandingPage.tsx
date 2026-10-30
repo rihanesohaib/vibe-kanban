@@ -337,7 +337,11 @@ export function LandingPage() {
         {/* Header */}
         <header className="shrink-0 space-y-base p-double pb-base">
           <div className="flex items-center justify-between">
-            <img src={logoSrc} alt="Agent Control Center" className="h-8 w-auto logo" />
+            <img
+              src={logoSrc}
+              alt="Agent Control Center"
+              className="h-8 w-auto logo"
+            />
             <div className="flex flex-wrap items-center gap-2">
               {SOCIAL_LINKS.map((link) => (
                 <PrimaryButton

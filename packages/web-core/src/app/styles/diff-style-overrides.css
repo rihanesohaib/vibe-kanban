@@ -890,8 +890,12 @@ diffs-container {
 
 /* Font: system monospace for code, system sans for headers */
 diffs-container {
-  --diffs-font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
-  --diffs-header-font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  --diffs-font-family:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono',
+    monospace;
+  --diffs-header-font-family:
+    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial,
+    sans-serif;
   --diffs-font-size: 12px;
   --diffs-line-height: 18px;
 }
