@@ -2,7 +2,11 @@ import { electricCollectionOptions } from '@tanstack/electric-db-collection';
 import { createCollection } from '@tanstack/react-db';
 
 import { getAuthRuntime } from '@/shared/lib/auth/runtime';
-import { getRemoteApiUrl, makeRequest } from '@/shared/lib/remoteApi';
+import {
+  getRemoteApiUrl,
+  isLocalKanbanMode,
+  makeRequest,
+} from '@/shared/lib/remoteApi';
 import type { MutationDefinition, ShapeDefinition } from 'shared/remote-types';
 import type { CollectionConfig, SyncError } from '@/shared/lib/electric/types';
 
@@ -10,10 +14,13 @@ type ElectricRow = Record<string, unknown> & { [key: string]: unknown };
 
 type SourceMode = 'electric' | 'fallback';
 
+/** `afterWrite` waits for any in-flight fetch so the result includes the write. */
+type FallbackRefresher = (afterWrite?: boolean) => Promise<void>;
+
 type SourceRuntime = {
   mode: SourceMode;
   fallbackLocked: boolean;
-  refreshers: Set<() => Promise<void>>;
+  refreshers: Set<FallbackRefresher>;
   fallbackSwitchers: Set<() => void>;
 };
 
@@ -71,6 +78,10 @@ type SyncConfigLike = {
 const DEFAULT_GC_TIME_MS = 5 * 60 * 1000;
 const ELECTRIC_READY_TIMEOUT_MS = 3000;
 const FALLBACK_REFRESH_INTERVAL_MS = 30 * 1000;
+// Local mode polls a cheap change counter and refetches only when it moves;
+// the full refresh is a safety net for changes the counter does not track.
+const LOCAL_CHANGE_POLL_INTERVAL_MS = 1000;
+const LOCAL_FULL_REFRESH_INTERVAL_MS = 10 * 1000;
 
 const collectionCache = new Map<string, ReturnType<typeof createCollection>>();
 const sourceRuntimes = new Map<string, SourceRuntime>();
@@ -228,7 +239,7 @@ function registerFallbackSwitcher(
 
 function registerFallbackRefresher(
   sourceKey: string,
-  refresher: () => Promise<void>
+  refresher: FallbackRefresher
 ): () => void {
   const runtime = getOrCreateSourceRuntime(sourceKey);
   runtime.refreshers.add(refresher);
@@ -241,11 +252,52 @@ function invalidateFallbackCache(sourceKey: string): void {
   fallbackSnapshotCache.delete(sourceKey);
 }
 
-function refreshFallbackSource(sourceKey: string): void {
+async function refreshFallbackSource(sourceKey: string): Promise<void> {
   const runtime = getOrCreateSourceRuntime(sourceKey);
-  for (const refresher of runtime.refreshers) {
-    void refresher();
+  await Promise.all(
+    Array.from(runtime.refreshers, (refresher) => refresher(true))
+  );
+}
+
+let localChangeWatchers = 0;
+let localChangeTimer: ReturnType<typeof globalThis.setInterval> | null = null;
+let localChangeVersion: number | null = null;
+
+async function pollLocalKanbanChanges(): Promise<void> {
+  if (!isPageVisible()) return;
+  try {
+    const response = await makeRequest('/v1/changes', { cache: 'no-store' });
+    if (!response.ok) return;
+    const { version } = (await response.json()) as { version: number };
+    if (localChangeVersion !== null && version !== localChangeVersion) {
+      for (const runtime of sourceRuntimes.values()) {
+        for (const refresher of runtime.refreshers) {
+          void refresher();
+        }
+      }
+    }
+    localChangeVersion = version;
+  } catch {
+    // The backend may be restarting; the next poll retries.
   }
+}
+
+function watchLocalKanbanChanges(): () => void {
+  localChangeWatchers += 1;
+  if (!localChangeTimer) {
+    localChangeTimer = globalThis.setInterval(() => {
+      void pollLocalKanbanChanges();
+    }, LOCAL_CHANGE_POLL_INTERVAL_MS);
+  }
+
+  return () => {
+    localChangeWatchers -= 1;
+    if (localChangeWatchers === 0 && localChangeTimer) {
+      globalThis.clearInterval(localChangeTimer);
+      localChangeTimer = null;
+      localChangeVersion = null;
+    }
+  };
 }
 
 function isAbortError(error: unknown): boolean {
@@ -448,8 +500,20 @@ function createFallbackSync(args: {
 
     let isCleanedUp = false;
     let refreshPromise: Promise<void> | null = null;
+    let appliedSnapshot: string | null = null;
 
-    const refreshNow = async () => {
+    // Polling refetches often; re-applying identical rows would re-render
+    // every subscriber for nothing.
+    const applyIfChanged = (rows: ElectricRow[]) => {
+      const snapshot = JSON.stringify(rows);
+      if (snapshot === appliedSnapshot && syncParams.collection.isReady()) {
+        return;
+      }
+      appliedSnapshot = snapshot;
+      applySnapshot(syncParams, rows);
+    };
+
+    const refreshNow = async (): Promise<void> => {
       if (refreshPromise) {
         return refreshPromise;
       }
@@ -474,7 +538,7 @@ function createFallbackSync(args: {
           fallbackSnapshotCache.set(args.sourceKey, rows);
 
           if (!isCleanedUp) {
-            applySnapshot(syncParams, rows);
+            applyIfChanged(rows);
           }
         } catch (error) {
           if (isAbortError(error)) return;
@@ -496,24 +560,35 @@ function createFallbackSync(args: {
 
     const unregisterRefresher = registerFallbackRefresher(
       args.sourceKey,
-      refreshNow
+      async (afterWrite) => {
+        if (afterWrite && refreshPromise) {
+          await refreshPromise;
+        }
+        await refreshNow();
+      }
     );
 
     const cachedRows = fallbackSnapshotCache.get(args.sourceKey);
     if (cachedRows) {
-      applySnapshot(syncParams, cachedRows);
+      applyIfChanged(cachedRows);
     }
 
     void refreshNow();
 
-    const intervalId = globalThis.setInterval(() => {
-      void refreshNow();
-    }, FALLBACK_REFRESH_INTERVAL_MS);
+    const localMode = isLocalKanbanMode();
+    const intervalId = globalThis.setInterval(
+      () => {
+        void refreshNow();
+      },
+      localMode ? LOCAL_FULL_REFRESH_INTERVAL_MS : FALLBACK_REFRESH_INTERVAL_MS
+    );
+    const stopWatchingChanges = localMode ? watchLocalKanbanChanges() : null;
 
     return {
       cleanup: () => {
         isCleanedUp = true;
         globalThis.clearInterval(intervalId);
+        stopWatchingChanges?.();
         unregisterRefresher();
       },
       loadSubset: () => true,
@@ -613,10 +688,14 @@ function isSourceFallbackLocked(sourceKey: string): boolean {
   return runtime.fallbackLocked;
 }
 
-function maybeRefreshFallbackAfterMutation(sourceKey: string): void {
+// Awaited by the mutation handlers so the optimistic state is only dropped
+// once the refetched rows contain the write.
+async function maybeRefreshFallbackAfterMutation(
+  sourceKey: string
+): Promise<void> {
   if (!isSourceFallbackLocked(sourceKey)) return;
   invalidateFallbackCache(sourceKey);
-  refreshFallbackSource(sourceKey);
+  await refreshFallbackSource(sourceKey);
 }
 
 function buildMutationHandlers(
@@ -648,7 +727,7 @@ function buildMutationHandlers(
         })
       );
 
-      maybeRefreshFallbackAfterMutation(sourceKey);
+      await maybeRefreshFallbackAfterMutation(sourceKey);
 
       if (isSourceFallbackLocked(sourceKey)) {
         return;
@@ -715,7 +794,7 @@ function buildMutationHandlers(
         txids = [result.txid];
       }
 
-      maybeRefreshFallbackAfterMutation(sourceKey);
+      await maybeRefreshFallbackAfterMutation(sourceKey);
 
       if (isSourceFallbackLocked(sourceKey)) {
         return;
@@ -749,7 +828,7 @@ function buildMutationHandlers(
         })
       );
 
-      maybeRefreshFallbackAfterMutation(sourceKey);
+      await maybeRefreshFallbackAfterMutation(sourceKey);
 
       if (isSourceFallbackLocked(sourceKey)) {
         return;
@@ -776,6 +855,24 @@ export function createShapeCollection<TRow extends ElectricRow>(
   }
 
   const reportError = createErrorReporter(config);
+
+  if (isLocalKanbanMode()) {
+    lockSourceToFallback(sourceKey);
+    const collection = createCollection({
+      id: collectionId,
+      getKey: (item: ElectricRow) => getRowKey(item),
+      gcTime: DEFAULT_GC_TIME_MS,
+      sync: {
+        sync: createFallbackSync({ sourceKey, shape, params, reportError }),
+      },
+      ...(mutation ? buildMutationHandlers(mutation, sourceKey) : {}),
+    } as never) as unknown as ReturnType<typeof createCollection> & {
+      __rowType?: TRow;
+    };
+    collectionCache.set(collectionId, collection);
+    return collection;
+  }
+
   const onElectricUnavailable = () => lockSourceToFallback(sourceKey);
 
   const shapeOptions = createElectricShapeOptions({
