@@ -48,15 +48,6 @@ export type CreatePRDialogResult = {
   error?: string;
 };
 
-const PR_TITLE_SUFFIX = ' (JARVIS)';
-
-const appendPrTitleSuffix = (title: string): string => {
-  const trimmedTitle = title.trim();
-  if (!trimmedTitle) return trimmedTitle;
-  if (trimmedTitle.endsWith(PR_TITLE_SUFFIX)) return trimmedTitle;
-  return `${trimmedTitle}${PR_TITLE_SUFFIX}`;
-};
-
 const CreatePRDialogImpl = create<CreatePRDialogProps>(
   ({ attempt, repoId, targetBranch, issueIdentifier }) => {
     const modal = useModal();
@@ -121,7 +112,7 @@ const CreatePRDialogImpl = create<CreatePRDialogProps>(
           if (firstUserMessage?.trim()) {
             const { title, description } =
               splitMessageToTitleDescription(firstUserMessage);
-            setPrTitle(appendPrTitleSuffix(title));
+            setPrTitle(title.trim());
             setPrBody(description ?? '');
             return;
           }

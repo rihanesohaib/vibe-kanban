@@ -13,11 +13,7 @@ executors = { path = "../executors" , version = "0.1.45" }
 async-trait = { workspace = true } 
 thiserror = { workspace = true } 
 anyhow = { workspace = true }
-relay-control = { path = "../relay-control" , version = "0.1.45" }
-relay-hosts = { path = "../relay-hosts" , version = "0.1.45" }
-trusted-key-auth = { path = "../trusted-key-auth" , version = "0.1.45" }
 client-info = { path = "../client-info" , version = "0.1.45" }
-remote-info = { path = "../remote-info" , version = "0.1.45" }
 preview-proxy = { path = "../preview-proxy" , version = "0.1.45" }
 tokio = { workspace = true }
 sqlx = "0.8.6"

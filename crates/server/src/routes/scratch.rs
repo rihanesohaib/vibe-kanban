@@ -1,6 +1,9 @@
 use axum::{
     Json, Router,
-    extract::{Path, State, ws::Message},
+    extract::{
+        Path, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
     response::{IntoResponse, Json as ResponseJson},
     routing::get,
 };
@@ -11,11 +14,7 @@ use serde::Deserialize;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use crate::{
-    DeploymentImpl,
-    error::ApiError,
-    middleware::signed_ws::{MaybeSignedWebSocket, SignedWsUpgrade},
-};
+use crate::{DeploymentImpl, error::ApiError};
 
 /// Path parameters for scratch routes with composite key
 #[derive(Deserialize)]
@@ -102,7 +101,7 @@ pub async fn delete_scratch(
 }
 
 pub async fn stream_scratch_ws(
-    ws: SignedWsUpgrade,
+    ws: WebSocketUpgrade,
     State(deployment): State<DeploymentImpl>,
     Path(ScratchPath { scratch_type, id }): Path<ScratchPath>,
 ) -> impl IntoResponse {
@@ -114,7 +113,7 @@ pub async fn stream_scratch_ws(
 }
 
 async fn handle_scratch_ws(
-    mut socket: MaybeSignedWebSocket,
+    mut socket: WebSocket,
     deployment: DeploymentImpl,
     id: Uuid,
     scratch_type: ScratchType,
@@ -143,10 +142,10 @@ async fn handle_scratch_ws(
             }
             inbound = socket.recv() => {
                 match inbound {
-                    Ok(Some(Message::Close(_))) => break,
-                    Ok(Some(_)) => {}
-                    Ok(None) => break,
-                    Err(_) => break,
+                    Some(Ok(Message::Close(_))) => break,
+                    Some(Ok(_)) => {}
+                    None => break,
+                    Some(Err(_)) => break,
                 }
             }
         }

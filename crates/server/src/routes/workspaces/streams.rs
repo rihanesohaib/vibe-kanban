@@ -1,16 +1,16 @@
 use axum::{
     Extension,
-    extract::{Query, State, ws::Message},
+    extract::{
+        Query, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
     response::IntoResponse,
 };
 use deployment::Deployment;
 use serde::Deserialize;
 use services::services::container::ContainerService;
 
-use crate::{
-    DeploymentImpl,
-    middleware::signed_ws::{MaybeSignedWebSocket, SignedWsUpgrade},
-};
+use crate::DeploymentImpl;
 
 #[derive(Debug, Deserialize)]
 pub struct DiffStreamQuery {
@@ -25,7 +25,7 @@ pub struct WorkspaceStreamQuery {
 }
 
 pub async fn stream_workspaces_ws(
-    ws: SignedWsUpgrade,
+    ws: WebSocketUpgrade,
     Query(query): Query<WorkspaceStreamQuery>,
     State(deployment): State<DeploymentImpl>,
 ) -> impl IntoResponse {
@@ -38,7 +38,7 @@ pub async fn stream_workspaces_ws(
 }
 
 pub async fn stream_workspace_diff_ws(
-    ws: SignedWsUpgrade,
+    ws: WebSocketUpgrade,
     Query(params): Query<DiffStreamQuery>,
     Extension(workspace): Extension<db::models::workspace::Workspace>,
     State(deployment): State<DeploymentImpl>,
@@ -53,7 +53,7 @@ pub async fn stream_workspace_diff_ws(
 }
 
 async fn handle_workspace_diff_ws(
-    mut socket: MaybeSignedWebSocket,
+    mut socket: WebSocket,
     deployment: DeploymentImpl,
     workspace: db::models::workspace::Workspace,
     stats_only: bool,
@@ -86,10 +86,10 @@ async fn handle_workspace_diff_ws(
             }
             msg = socket.recv() => {
                 match msg {
-                    Ok(Some(Message::Close(_))) => break,
-                    Ok(Some(_)) => {}
-                    Ok(None) => break,
-                    Err(_) => break,
+                    Some(Ok(Message::Close(_))) => break,
+                    Some(Ok(_)) => {}
+                    None => break,
+                    Some(Err(_)) => break,
                 }
             }
         }
@@ -98,7 +98,7 @@ async fn handle_workspace_diff_ws(
 }
 
 async fn handle_workspaces_ws(
-    mut socket: MaybeSignedWebSocket,
+    mut socket: WebSocket,
     deployment: DeploymentImpl,
     archived: Option<bool>,
     limit: Option<i64>,
@@ -129,10 +129,10 @@ async fn handle_workspaces_ws(
             }
             msg = socket.recv() => {
                 match msg {
-                    Ok(Some(Message::Close(_))) => break,
-                    Ok(Some(_)) => {}
-                    Ok(None) => break,
-                    Err(_) => break,
+                    Some(Ok(Message::Close(_))) => break,
+                    Some(Ok(_)) => {}
+                    None => break,
+                    Some(Err(_)) => break,
                 }
             }
         }

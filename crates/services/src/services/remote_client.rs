@@ -20,7 +20,6 @@ use api_types::{
 };
 use backon::{ExponentialBuilder, Retryable};
 use chrono::Duration as ChronoDuration;
-use relay_types::{ListRelayHostsResponse, RelayHost};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -645,12 +644,6 @@ impl RemoteClient {
             request,
         )
         .await
-    }
-
-    /// Lists relay hosts visible to the current user.
-    pub async fn list_relay_hosts(&self) -> Result<Vec<RelayHost>, RemoteClientError> {
-        let response: ListRelayHostsResponse = self.get_authed("/v1/hosts").await?;
-        Ok(response.hosts)
     }
 
     /// Deletes a workspace on the remote server by its local workspace ID.

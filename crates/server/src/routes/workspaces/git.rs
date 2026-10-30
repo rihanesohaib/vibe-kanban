@@ -5,7 +5,7 @@ use std::{
 
 use axum::{
     Extension, Json, Router,
-    extract::State,
+    extract::{State, ws::WebSocketUpgrade},
     response::{IntoResponse, Json as ResponseJson},
     routing::{get, post},
 };
@@ -24,9 +24,7 @@ use utils::response::ApiResponse;
 use uuid::Uuid;
 
 use super::streams::{DiffStreamQuery, stream_workspace_diff_ws};
-use crate::{
-    DeploymentImpl, error::ApiError, middleware::signed_ws::SignedWsUpgrade, routes::kanban,
-};
+use crate::{DeploymentImpl, error::ApiError, routes::kanban};
 
 #[derive(Debug, Deserialize, Serialize, TS)]
 pub struct RebaseWorkspaceRequest {
@@ -169,7 +167,7 @@ async fn resolve_vibe_kanban_identifier(
 
 #[axum::debug_handler]
 pub async fn stream_diff_ws(
-    ws: SignedWsUpgrade,
+    ws: WebSocketUpgrade,
     query: axum::extract::Query<DiffStreamQuery>,
     workspace: Extension<Workspace>,
     deployment: State<DeploymentImpl>,

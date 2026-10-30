@@ -11,7 +11,6 @@ qa-mode = ["executors/qa-mode"]
 [dependencies]
 indicatif = "0.17"
 api-types = { path = "../api-types" , version = "0.1.45" }
-relay-types = { path = "../relay-types" , version = "0.1.45" }
 utils = { path = "../utils" , version = "0.1.45" }
 git = { path = "../git" , version = "0.1.45" }
 git-host = { path = "../git-host" , version = "0.1.45" }

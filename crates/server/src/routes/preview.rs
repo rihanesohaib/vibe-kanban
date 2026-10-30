@@ -1,6 +1,9 @@
 use axum::{
     Router,
-    extract::{Path, Request, State, ws::rejection::WebSocketUpgradeRejection},
+    extract::{
+        Path, Request, State,
+        ws::{WebSocketUpgrade, rejection::WebSocketUpgradeRejection},
+    },
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::any,
@@ -8,7 +11,7 @@ use axum::{
 use deployment::Deployment;
 use ws_bridge::{bridge_axum_ws, connect_upstream_ws};
 
-use crate::{DeploymentImpl, middleware::signed_ws::SignedWsUpgrade};
+use crate::DeploymentImpl;
 
 pub(super) fn api_router() -> Router<DeploymentImpl> {
     Router::new()
@@ -25,7 +28,7 @@ pub fn subdomain_router(deployment: DeploymentImpl) -> Router {
 async fn proxy_preview_request_no_tail(
     State(deployment): State<DeploymentImpl>,
     Path(target_port): Path<u16>,
-    ws_upgrade: Result<SignedWsUpgrade, WebSocketUpgradeRejection>,
+    ws_upgrade: Result<WebSocketUpgrade, WebSocketUpgradeRejection>,
     request: Request,
 ) -> Response {
     match ws_upgrade {
@@ -46,7 +49,7 @@ async fn proxy_preview_request_no_tail(
 async fn proxy_preview_request(
     State(deployment): State<DeploymentImpl>,
     Path((target_port, tail)): Path<(u16, String)>,
-    ws_upgrade: Result<SignedWsUpgrade, WebSocketUpgradeRejection>,
+    ws_upgrade: Result<WebSocketUpgrade, WebSocketUpgradeRejection>,
     request: Request,
 ) -> Response {
     match ws_upgrade {
@@ -65,7 +68,7 @@ async fn proxy_preview_request(
 }
 
 async fn forward_preview_ws(
-    ws: SignedWsUpgrade,
+    ws: WebSocketUpgrade,
     target_port: u16,
     tail: String,
     request: Request,
@@ -113,14 +116,6 @@ async fn subdomain_proxy_request(
     State(deployment): State<DeploymentImpl>,
     request: Request,
 ) -> Response {
-    let Some(server_addr) = deployment.client_info().get_server_addr() else {
-        return (
-            StatusCode::BAD_REQUEST,
-            "Local server address is not available",
-        )
-            .into_response();
-    };
-
     let Some(proxy_port) = deployment.client_info().get_preview_proxy_port() else {
         return (
             StatusCode::BAD_REQUEST,
@@ -129,11 +124,5 @@ async fn subdomain_proxy_request(
             .into_response();
     };
 
-    preview_proxy::proxy_subdomain_request(
-        deployment.preview_proxy(),
-        server_addr,
-        proxy_port,
-        request,
-    )
-    .await
+    preview_proxy::proxy_subdomain_request(deployment.preview_proxy(), proxy_port, request).await
 }

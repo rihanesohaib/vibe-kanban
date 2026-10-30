@@ -31,7 +31,7 @@ import {
   TwoColumnPickerEmpty,
 } from './SettingsComponents';
 import { useSettingsDirty } from './SettingsDirtyContext';
-import { useSettingsMachineClient } from './SettingsHostContext';
+import { localMachineClient } from '@/shared/lib/machineClient';
 import { AgentIcon } from '@/shared/components/AgentIcon';
 import { getExecutorVariantKeys } from '@/shared/lib/executor';
 
@@ -40,7 +40,7 @@ type ExecutorsMap = Record<string, Record<string, Record<string, unknown>>>;
 export function AgentsSettingsSection() {
   const { t } = useTranslation(['settings', 'common']);
   const { setDirty: setContextDirty } = useSettingsDirty();
-  const machineClient = useSettingsMachineClient();
+  const machineClient = localMachineClient;
 
   // Profiles hook for server state
   const {

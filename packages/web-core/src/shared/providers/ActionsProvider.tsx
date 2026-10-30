@@ -196,7 +196,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
   const executorContext = useMemo<ActionExecutorContext>(() => {
     return {
       appRuntime,
-      currentHostId: hostId,
       appNavigation,
       queryClient,
       selectWorkspace,
@@ -230,7 +229,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
     };
   }, [
     appRuntime,
-    hostId,
     queryClient,
     selectWorkspace,
     activeWorkspaces,
