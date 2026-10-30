@@ -24,7 +24,9 @@ use utils::response::ApiResponse;
 use uuid::Uuid;
 
 use super::streams::{DiffStreamQuery, stream_workspace_diff_ws};
-use crate::{DeploymentImpl, error::ApiError, middleware::signed_ws::SignedWsUpgrade};
+use crate::{
+    DeploymentImpl, error::ApiError, middleware::signed_ws::SignedWsUpgrade, routes::kanban,
+};
 
 #[derive(Debug, Deserialize, Serialize, TS)]
 pub struct RebaseWorkspaceRequest {
@@ -152,10 +154,10 @@ async fn resolve_vibe_kanban_identifier(
     deployment: &DeploymentImpl,
     local_workspace_id: Uuid,
 ) -> String {
-    if let Ok(client) = deployment.remote_client()
-        && let Ok(remote_ws) = client.get_workspace_by_local_id(local_workspace_id).await
-        && let Some(issue_id) = remote_ws.issue_id
-        && let Ok(issue) = client.get_issue(issue_id).await
+    let kanban = kanban::service(deployment);
+    if let Ok(linked) = kanban.get_workspace(local_workspace_id).await
+        && let Some(issue_id) = linked.issue_id
+        && let Ok(issue) = kanban.get_issue(issue_id).await
     {
         if !issue.simple_id.is_empty() {
             return issue.simple_id;
@@ -239,6 +241,13 @@ pub async fn merge_workspace(
         &merge_commit_id,
     )
     .await?;
+
+    if let Err(e) = kanban::service(&deployment)
+        .on_workspace_merged(workspace.id)
+        .await
+    {
+        tracing::warn!("Failed to update issue status after merge: {}", e);
+    }
 
     if let Ok(client) = deployment.remote_client() {
         let workspace_id = workspace.id;

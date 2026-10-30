@@ -36,7 +36,7 @@ use utils::response::ApiResponse;
 use uuid::Uuid;
 use workspace_manager::WorkspaceManager;
 
-use crate::{DeploymentImpl, error::ApiError};
+use crate::{DeploymentImpl, error::ApiError, routes::kanban};
 
 #[derive(Debug, Deserialize, Serialize, TS)]
 pub struct CreatePrApiRequest {
@@ -316,6 +316,13 @@ pub async fn create_pr(
                 tracing::error!("Failed to create local PR record: {}", e);
             }
 
+            if let Err(e) = kanban::service(&deployment)
+                .on_pull_request_status(workspace.id, PullRequestStatus::Open)
+                .await
+            {
+                tracing::warn!("Failed to update issue status for new PR: {}", e);
+            }
+
             if let Ok(client) = deployment.remote_client() {
                 let request = UpsertPullRequestRequest {
                     url: pr_info.url.clone(),
@@ -483,13 +490,20 @@ pub async fn attach_existing_pr(
             .await?;
         }
 
+        let pr_status = match pr_info.status {
+            MergeStatus::Open => PullRequestStatus::Open,
+            MergeStatus::Merged => PullRequestStatus::Merged,
+            MergeStatus::Closed => PullRequestStatus::Closed,
+            MergeStatus::Unknown => PullRequestStatus::Open,
+        };
+        if let Err(e) = kanban::service(&deployment)
+            .on_pull_request_status(workspace.id, pr_status)
+            .await
+        {
+            tracing::warn!("Failed to update issue status for attached PR: {}", e);
+        }
+
         if let Ok(client) = deployment.remote_client() {
-            let pr_status = match pr_info.status {
-                MergeStatus::Open => PullRequestStatus::Open,
-                MergeStatus::Merged => PullRequestStatus::Merged,
-                MergeStatus::Closed => PullRequestStatus::Closed,
-                MergeStatus::Unknown => PullRequestStatus::Open,
-            };
             let request = UpsertPullRequestRequest {
                 url: pr_info.url.clone(),
                 number: pr_info.number as i32,

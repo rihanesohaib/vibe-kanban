@@ -20,6 +20,7 @@ use tracing::{debug, error, info, warn};
 use crate::services::{
     analytics::AnalyticsContext,
     container::ContainerService,
+    local_kanban::LocalKanbanService,
     remote_client::{RemoteClient, RemoteClientError},
     remote_sync,
 };
@@ -153,6 +154,23 @@ impl<C: ContainerService + Send + Sync + 'static> PrMonitorService<C> {
             status.merge_commit_sha.clone(),
         )
         .await?;
+
+        if let Some(workspace_id) = pr.workspace_id {
+            let pr_status = if matches!(&status.status, MergeStatus::Merged) {
+                PullRequestStatus::Merged
+            } else {
+                PullRequestStatus::Closed
+            };
+            if let Err(e) = LocalKanbanService::new(self.db.pool.clone())
+                .on_pull_request_status(workspace_id, pr_status)
+                .await
+            {
+                warn!(
+                    "Failed to update issue status for PR #{}: {}",
+                    pr.pr_number, e
+                );
+            }
+        }
 
         // If this is a workspace PR and it was merged, try to archive
         if matches!(&status.status, MergeStatus::Merged)

@@ -57,7 +57,9 @@ use utils::{
 use uuid::Uuid;
 use worktree_manager::WorktreeError;
 
-use crate::services::{execution_process, notification::NotificationService};
+use crate::services::{
+    execution_process, local_kanban::LocalKanbanService, notification::NotificationService,
+};
 pub type ContainerRef = String;
 
 #[derive(Debug, Error)]
@@ -1293,6 +1295,14 @@ pub trait ContainerService {
                 }
             };
             return Err(start_error);
+        }
+
+        if *run_reason == ExecutionProcessRunReason::CodingAgent
+            && let Err(e) = LocalKanbanService::new(self.db().pool.clone())
+                .on_coding_agent_started(workspace.id)
+                .await
+        {
+            tracing::warn!("Failed to update issue status after agent start: {}", e);
         }
 
         // Start processing normalised logs for executor requests and follow ups
