@@ -57,7 +57,10 @@ use utils::{
 use uuid::Uuid;
 use worktree_manager::WorktreeError;
 
-use crate::services::{execution_process, notification::NotificationService};
+use crate::services::{
+    execution_process,
+    notification::{AgentAlert, AgentAlertKind, NotificationService},
+};
 pub type ContainerRef = String;
 
 #[derive(Debug, Error)]
@@ -246,15 +249,14 @@ pub trait ContainerService {
             .name
             .as_deref()
             .unwrap_or(&ctx.workspace.branch);
-        let title = format!("Workspace Complete: {}", workspace_name);
-        let message = match ctx.execution_process.status {
-            ExecutionProcessStatus::Completed => format!(
-                "✅ '{}' completed successfully\nBranch: {:?}\nExecutor: {:?}",
-                workspace_name, ctx.workspace.branch, ctx.session.executor
+        let (kind, title) = match ctx.execution_process.status {
+            ExecutionProcessStatus::Completed => (
+                AgentAlertKind::Finished,
+                format!("Agent finished: {workspace_name}"),
             ),
-            ExecutionProcessStatus::Failed => format!(
-                "❌ '{}' execution failed\nBranch: {:?}\nExecutor: {:?}",
-                workspace_name, ctx.workspace.branch, ctx.session.executor
+            ExecutionProcessStatus::Failed => (
+                AgentAlertKind::Failed,
+                format!("Agent failed: {workspace_name}"),
             ),
             _ => {
                 tracing::warn!(
@@ -264,8 +266,19 @@ pub trait ContainerService {
                 return;
             }
         };
+        let body = match ctx.session.executor.as_deref() {
+            Some(executor) => format!("Branch {} · {executor}", ctx.workspace.branch),
+            None => format!("Branch {}", ctx.workspace.branch),
+        };
         self.notification_service()
-            .notify(&title, &message, Some(ctx.workspace.id))
+            .alert(AgentAlert {
+                id: AgentAlert::run_id(ctx.execution_process.id),
+                kind,
+                title,
+                body,
+                workspace_id: Some(ctx.workspace.id),
+                created_at: chrono::Utc::now(),
+            })
             .await;
     }
 

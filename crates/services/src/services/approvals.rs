@@ -272,7 +272,7 @@ impl Approvals {
             .collect()
     }
 
-    fn pending_infos(&self) -> Vec<ApprovalInfo> {
+    pub fn pending_infos(&self) -> Vec<ApprovalInfo> {
         self.pending
             .iter()
             .map(|entry| {
