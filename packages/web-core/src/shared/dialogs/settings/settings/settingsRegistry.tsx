@@ -61,7 +61,6 @@ export const SETTINGS_SECTION_DEFINITIONS: SettingsSectionDefinition[] = [
     id: 'remote-projects',
     icon: CloudIcon,
     group: 'universal',
-    requiresRemote: true,
   },
   {
     id: 'relay',

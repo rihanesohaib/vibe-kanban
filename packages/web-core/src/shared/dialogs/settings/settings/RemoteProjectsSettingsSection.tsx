@@ -43,7 +43,10 @@ import { OAuthDialog } from '@/shared/dialogs/global/OAuthDialog';
 import { CreateRemoteProjectDialog } from '@/shared/dialogs/org/CreateRemoteProjectDialog';
 import { DeleteRemoteProjectDialog } from '@/shared/dialogs/org/DeleteRemoteProjectDialog';
 import { useShape } from '@/shared/integrations/electric/hooks';
-import { bulkUpdateProjectStatuses } from '@/shared/lib/remoteApi';
+import {
+  bulkUpdateProjectStatuses,
+  isLocalKanbanMode,
+} from '@/shared/lib/remoteApi';
 
 import {
   PROJECTS_SHAPE,
@@ -1000,8 +1003,8 @@ export function RemoteProjectsSettingsSection({
     );
   }
 
-  // Auth check - show sign-in prompt if not signed in
-  if (!isSignedIn) {
+  // The cloud needs a sign-in; local projects do not.
+  if (!isSignedIn && !isLocalKanbanMode()) {
     return (
       <div className="space-y-4">
         <div>

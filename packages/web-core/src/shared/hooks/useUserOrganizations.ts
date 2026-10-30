@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { organizationsApi } from '@/shared/lib/api';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
+import { isLocalKanbanMode } from '@/shared/lib/remoteApi';
 import type { ListOrganizationsResponse } from 'shared/types';
 import { organizationKeys } from '@/shared/hooks/organizationKeys';
 
@@ -13,7 +14,7 @@ export function useUserOrganizations() {
   return useQuery<ListOrganizationsResponse>({
     queryKey: organizationKeys.userList(),
     queryFn: () => organizationsApi.getUserOrganizations(),
-    enabled: isSignedIn,
+    enabled: isSignedIn || isLocalKanbanMode(),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
