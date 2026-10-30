@@ -7,7 +7,10 @@ import {
   DropdownMenuTrigger,
 } from '@vibe/ui/components/DropdownMenu';
 import { Label } from '@vibe/ui/components/Label';
+import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ExecutorProfileId, BaseCodingAgent } from 'shared/types';
+import { useVisibleExecutors } from '@/shared/hooks/useVisibleExecutors';
 
 interface AgentSelectorProps {
   profiles: Record<string, Record<string, unknown>> | null;
@@ -26,10 +29,18 @@ export function AgentSelector({
   className = '',
   showLabel = false,
 }: AgentSelectorProps) {
-  const agents = profiles
-    ? (Object.keys(profiles).sort() as BaseCodingAgent[])
-    : [];
+  const { t } = useTranslation('settings');
+  const allAgents = useMemo(
+    () => (profiles ? (Object.keys(profiles) as BaseCodingAgent[]) : []),
+    [profiles]
+  );
   const selectedAgent = selectedExecutorProfile?.executor;
+  const {
+    executors: agents,
+    hiddenCount,
+    showAll,
+    setShowAll,
+  } = useVisibleExecutors(allAgents, [selectedAgent]);
 
   if (!profiles) return null;
 
@@ -76,6 +87,19 @@ export function AgentSelector({
                 {agent}
               </DropdownMenuItem>
             ))
+          )}
+          {hiddenCount > 0 && (
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault();
+                setShowAll(!showAll);
+              }}
+              className="text-muted-foreground"
+            >
+              {showAll
+                ? t('settings.agents.hideUninstalled')
+                : t('settings.agents.showUninstalled', { count: hiddenCount })}
+            </DropdownMenuItem>
           )}
         </DropdownMenuContent>
       </DropdownMenu>

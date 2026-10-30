@@ -1,4 +1,5 @@
 import type {
+  AvailabilityInfo,
   BaseCodingAgent,
   ExecutorConfig,
   ExecutorConfigs,
@@ -9,6 +10,43 @@ import type {
 } from 'shared/types';
 
 const RESERVED_KEYS = new Set(['recently_used_models']);
+
+/** Executors listed first in every picker, in this order. */
+const PREFERRED_EXECUTORS: readonly string[] = ['CURSOR_AGENT'];
+
+/** Sorts executors with preferred ones first, then alphabetically. */
+export function sortExecutors<T extends string>(executors: Iterable<T>): T[] {
+  return [...executors].sort((a, b) => {
+    const rankA = PREFERRED_EXECUTORS.indexOf(a);
+    const rankB = PREFERRED_EXECUTORS.indexOf(b);
+    if (rankA !== -1 || rankB !== -1) {
+      if (rankA === -1) return 1;
+      if (rankB === -1) return -1;
+      return rankA - rankB;
+    }
+    return a.localeCompare(b);
+  });
+}
+
+/**
+ * Keeps executors whose CLI is installed, plus any in `keep` (e.g. the
+ * current selection). Returns the input unchanged while availability is
+ * unknown or when nothing would remain.
+ */
+export function filterInstalledExecutors<T extends string>(
+  executors: T[],
+  availability: Record<string, AvailabilityInfo> | null | undefined,
+  keep: ReadonlyArray<string | null | undefined> = []
+): T[] {
+  if (!availability) return executors;
+  const filtered = executors.filter(
+    (executor) =>
+      keep.includes(executor) ||
+      (availability[executor] !== undefined &&
+        availability[executor].type !== 'NOT_FOUND')
+  );
+  return filtered.length > 0 ? filtered : executors;
+}
 
 export function getExecutorVariantKeys(
   executorProfile: ExecutorProfile | Record<string, unknown> | null | undefined

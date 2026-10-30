@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PlusIcon } from '@phosphor-icons/react';
 import type { BaseCodingAgent, ExecutorProfile } from 'shared/types';
 import { McpConfig } from 'shared/types';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
+import { useVisibleExecutors } from '@/shared/hooks/useVisibleExecutors';
 import { McpConfigStrategyGeneral } from '@/shared/lib/mcpStrategies';
 import { cn } from '@/shared/lib/utils';
 import { toPrettyCase } from '@/shared/lib/string';
@@ -36,6 +37,7 @@ export function McpSettingsSection() {
   const [selectedProfile, setSelectedProfile] =
     useState<ExecutorProfile | null>(null);
   const [mcpApplying, setMcpApplying] = useState(false);
+  const profileKeys = useMemo(() => Object.keys(profiles ?? {}), [profiles]);
   const [mcpConfigPath, setMcpConfigPath] = useState<string>('');
   const [success, setSuccess] = useState(false);
 
@@ -231,17 +233,21 @@ export function McpSettingsSection() {
   ) as Record<string, unknown>;
   const getMetaFor = (key: string) => meta[key] || {};
 
-  const profileOptions = profiles
-    ? Object.keys(profiles)
-        .sort()
-        .map((key) => ({ value: key, label: toPrettyCase(key) }))
-    : [];
-
   const selectedProfileKey = selectedProfile
     ? Object.keys(profiles || {}).find(
         (key) => profiles![key] === selectedProfile
       ) || ''
     : '';
+
+  const { executors: visibleProfileKeys } = useVisibleExecutors(profileKeys, [
+    selectedProfileKey,
+  ]);
+  const profileOptions = profiles
+    ? visibleProfileKeys.map((key) => ({
+        value: key,
+        label: toPrettyCase(key),
+      }))
+    : [];
 
   if (!config) {
     return (
