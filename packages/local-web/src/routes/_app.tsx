@@ -1,8 +1,5 @@
 import type { ReactNode } from 'react';
-import {
-  createFileRoute,
-  useParams,
-} from '@tanstack/react-router';
+import { createFileRoute, useParams } from '@tanstack/react-router';
 import { Provider as NiceModalProvider } from '@ebay/nice-modal-react';
 import { SequenceTrackerProvider } from '@/shared/keyboard/SequenceTracker';
 import { SequenceIndicator } from '@/shared/keyboard/SequenceIndicator';
