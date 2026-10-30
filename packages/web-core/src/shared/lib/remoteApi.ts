@@ -41,6 +41,15 @@ export function getRemoteApiUrl(): string {
   return _remoteApiBase;
 }
 
+/**
+ * Whether cloud features (sign-in, organizations, kanban projects, relay
+ * hosts, export) are available. False for local-only installs, where neither
+ * the backend nor the build provides a remote API base.
+ */
+export function isRemoteEnabled(): boolean {
+  return _remoteApiBase !== '';
+}
+
 // Backward-compatible export — consumers should migrate to getRemoteApiUrl()
 export const REMOTE_API_URL = BUILD_TIME_API_BASE;
 

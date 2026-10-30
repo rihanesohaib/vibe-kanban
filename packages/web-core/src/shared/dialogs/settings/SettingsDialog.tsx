@@ -13,9 +13,10 @@ import type {
   SettingsSectionInitialState,
 } from './settings/SettingsSection';
 import {
-  SETTINGS_SECTION_DEFINITIONS,
+  getAvailableSettingsSections,
   isHostSpecificSettingsSection,
 } from './settings/settingsRegistry';
+import { isRemoteEnabled } from '@/shared/lib/remoteApi';
 import {
   SettingsDirtyProvider,
   useSettingsDirty,
@@ -54,10 +55,11 @@ function SettingsDialogNavigation({
     selectedHostId,
     setSelectedHostId,
   } = useSettingsHost();
-  const hostSections = SETTINGS_SECTION_DEFINITIONS.filter(
+  const availableSections = getAvailableSettingsSections();
+  const hostSections = availableSections.filter(
     (section) => section.group === 'host'
   );
-  const universalSections = SETTINGS_SECTION_DEFINITIONS.filter(
+  const universalSections = availableSections.filter(
     (section) => section.group === 'universal'
   );
   const hostOptions = availableHosts.map((host) => ({
@@ -76,9 +78,7 @@ function SettingsDialogNavigation({
   };
 
   const renderSectionButton = (sectionId: SettingsSectionType) => {
-    const section = SETTINGS_SECTION_DEFINITIONS.find(
-      (item) => item.id === sectionId
-    );
+    const section = availableSections.find((item) => item.id === sectionId);
     if (!section) return null;
     const Icon = section.icon;
     const isActive = activeSection === section.id;
@@ -120,13 +120,17 @@ function SettingsDialogNavigation({
           <SettingsSelect
             value={selectedHostId ?? undefined}
             options={hostOptions}
-            actions={[
-              {
-                label: t('settings.layout.nav.pairOtherMachines'),
-                icon: PlusIcon,
-                onClick: handlePairOtherMachines,
-              },
-            ]}
+            actions={
+              isRemoteEnabled()
+                ? [
+                    {
+                      label: t('settings.layout.nav.pairOtherMachines'),
+                      icon: PlusIcon,
+                      onClick: handlePairOtherMachines,
+                    },
+                  ]
+                : []
+            }
             onChange={setSelectedHostId}
             placeholder={t('settings.layout.nav.selectHost')}
           />
@@ -138,16 +142,20 @@ function SettingsDialogNavigation({
           {hostSections.map((section) => renderSectionButton(section.id))}
         </div>
       </div>
-      <div className="space-y-2">
-        <div className="px-3 pt-1">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-low">
-            {t('settings.layout.nav.accountSettings')}
+      {universalSections.length > 0 && (
+        <div className="space-y-2">
+          <div className="px-3 pt-1">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-low">
+              {t('settings.layout.nav.accountSettings')}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            {universalSections.map((section) =>
+              renderSectionButton(section.id)
+            )}
           </div>
         </div>
-        <div className="flex flex-col gap-1">
-          {universalSections.map((section) => renderSectionButton(section.id))}
-        </div>
-      </div>
+      )}
     </nav>
   );
 }
@@ -164,7 +172,7 @@ function SettingsDialogContent({
   const resolvedInitialSection = useMemo<SettingsSectionType>(() => {
     if (
       initialSection &&
-      SETTINGS_SECTION_DEFINITIONS.some(
+      getAvailableSettingsSections().some(
         (section) => section.id === initialSection
       )
     ) {

@@ -4,7 +4,7 @@ import type { AppBarHost, AppBarHostStatus } from '@vibe/ui/components/AppBar';
 import type { PairRelayHostRequest, RelayPairedHost } from 'shared/types';
 import type { RelayHost } from 'shared/remote-types';
 import { relayApi } from '@/shared/lib/api';
-import { listRelayHosts } from '@/shared/lib/remoteApi';
+import { isRemoteEnabled, listRelayHosts } from '@/shared/lib/remoteApi';
 
 export type RemoteCloudHostStatus = AppBarHostStatus;
 
@@ -76,6 +76,7 @@ export function useRemoteCloudHostsState() {
     queryKey: REMOTE_CLOUD_HOSTS_STATE_QUERY_KEY,
     queryFn: fetchRemoteCloudHostsState,
     staleTime: 0,
+    enabled: isRemoteEnabled(),
   });
 }
 

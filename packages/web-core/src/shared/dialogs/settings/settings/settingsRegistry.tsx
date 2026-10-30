@@ -15,6 +15,7 @@ import { RemoteProjectsSettingsSection } from './RemoteProjectsSettingsSection';
 import { AgentsSettingsSection } from './AgentsSettingsSection';
 import { McpSettingsSection } from './McpSettingsSection';
 import { RelaySettingsSectionContent } from './RelaySettingsSection';
+import { isRemoteEnabled } from '@/shared/lib/remoteApi';
 
 export type SettingsSectionType =
   | 'general'
@@ -42,6 +43,7 @@ export interface SettingsSectionDefinition {
   id: SettingsSectionType;
   icon: Icon;
   group: SettingsSectionGroup;
+  requiresRemote?: boolean;
 }
 
 export const SETTINGS_SECTION_DEFINITIONS: SettingsSectionDefinition[] = [
@@ -49,10 +51,32 @@ export const SETTINGS_SECTION_DEFINITIONS: SettingsSectionDefinition[] = [
   { id: 'repos', icon: GitBranchIcon, group: 'host' },
   { id: 'agents', icon: CpuIcon, group: 'host' },
   { id: 'mcp', icon: PlugIcon, group: 'host' },
-  { id: 'organizations', icon: BuildingsIcon, group: 'universal' },
-  { id: 'remote-projects', icon: CloudIcon, group: 'universal' },
-  { id: 'relay', icon: BroadcastIcon, group: 'universal' },
+  {
+    id: 'organizations',
+    icon: BuildingsIcon,
+    group: 'universal',
+    requiresRemote: true,
+  },
+  {
+    id: 'remote-projects',
+    icon: CloudIcon,
+    group: 'universal',
+    requiresRemote: true,
+  },
+  {
+    id: 'relay',
+    icon: BroadcastIcon,
+    group: 'universal',
+    requiresRemote: true,
+  },
 ];
+
+export function getAvailableSettingsSections(): SettingsSectionDefinition[] {
+  const remoteEnabled = isRemoteEnabled();
+  return SETTINGS_SECTION_DEFINITIONS.filter(
+    (section) => remoteEnabled || !section.requiresRemote
+  );
+}
 
 export function isHostSpecificSettingsSection(
   type: SettingsSectionType

@@ -38,8 +38,6 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
       return { kind: 'root' };
     case '/onboarding':
       return { kind: 'onboarding' };
-    case '/onboarding_/sign-in':
-      return { kind: 'onboarding-sign-in' };
     case '/_app/workspaces':
       return { kind: 'workspaces' };
     case '/_app/export':
@@ -184,9 +182,8 @@ function destinationToLocalTarget(
     case 'root':
       return { to: '/' } as const;
     case 'onboarding':
-      return { to: '/onboarding' } as const;
     case 'onboarding-sign-in':
-      return { to: '/onboarding/sign-in' } as const;
+      return { to: '/onboarding' } as const;
     case 'workspaces':
       if (effectiveHostId) {
         return {

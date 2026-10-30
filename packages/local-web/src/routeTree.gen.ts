@@ -15,7 +15,6 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AppExportRouteImport } from './routes/_app.export'
 import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
 import { Route as AppWorkspacesRouteImport } from './routes/_app.workspaces'
-import { Route as OnboardingSignInRouteImport } from './routes/onboarding_.sign-in'
 import { Route as AppProjectsProjectIdRouteImport } from './routes/_app.projects.$projectId'
 import { Route as AppWorkspacesWorkspaceIdRouteImport } from './routes/_app.workspaces_.$workspaceId'
 import { Route as AppWorkspacesCreateRouteImport } from './routes/_app.workspaces_.create'
@@ -61,11 +60,6 @@ const AppWorkspacesRoute = AppWorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
   getParentRoute: () => AppRoute,
-} as any)
-const OnboardingSignInRoute = OnboardingSignInRouteImport.update({
-  id: '/onboarding_/sign-in',
-  path: '/onboarding/sign-in',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const AppProjectsProjectIdRoute = AppProjectsProjectIdRouteImport.update({
   id: '/projects/$projectId',
@@ -172,7 +166,6 @@ export interface FileRoutesByFullPath {
   '/export': typeof AppExportRoute
   '/notifications': typeof AppNotificationsRoute
   '/workspaces': typeof AppWorkspacesRoute
-  '/onboarding/sign-in': typeof OnboardingSignInRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/workspaces/$workspaceId': typeof AppWorkspacesWorkspaceIdRoute
   '/workspaces/create': typeof AppWorkspacesCreateRoute
@@ -196,7 +189,6 @@ export interface FileRoutesByTo {
   '/export': typeof AppExportRoute
   '/notifications': typeof AppNotificationsRoute
   '/workspaces': typeof AppWorkspacesRoute
-  '/onboarding/sign-in': typeof OnboardingSignInRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/workspaces/$workspaceId': typeof AppWorkspacesWorkspaceIdRoute
   '/workspaces/create': typeof AppWorkspacesCreateRoute
@@ -222,7 +214,6 @@ export interface FileRoutesById {
   '/_app/export': typeof AppExportRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/workspaces': typeof AppWorkspacesRoute
-  '/onboarding_/sign-in': typeof OnboardingSignInRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/_app/workspaces_/$workspaceId': typeof AppWorkspacesWorkspaceIdRoute
   '/_app/workspaces_/create': typeof AppWorkspacesCreateRoute
@@ -248,7 +239,6 @@ export interface FileRouteTypes {
     | '/export'
     | '/notifications'
     | '/workspaces'
-    | '/onboarding/sign-in'
     | '/projects/$projectId'
     | '/workspaces/$workspaceId'
     | '/workspaces/create'
@@ -272,7 +262,6 @@ export interface FileRouteTypes {
     | '/export'
     | '/notifications'
     | '/workspaces'
-    | '/onboarding/sign-in'
     | '/projects/$projectId'
     | '/workspaces/$workspaceId'
     | '/workspaces/create'
@@ -297,7 +286,6 @@ export interface FileRouteTypes {
     | '/_app/export'
     | '/_app/notifications'
     | '/_app/workspaces'
-    | '/onboarding_/sign-in'
     | '/_app/projects/$projectId'
     | '/_app/workspaces_/$workspaceId'
     | '/_app/workspaces_/create'
@@ -320,7 +308,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
-  OnboardingSignInRoute: typeof OnboardingSignInRoute
   WorkspacesWorkspaceIdVscodeRoute: typeof WorkspacesWorkspaceIdVscodeRoute
   HostsHostIdWorkspacesWorkspaceIdVscodeRoute: typeof HostsHostIdWorkspacesWorkspaceIdVscodeRoute
 }
@@ -368,13 +355,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/workspaces'
       preLoaderRoute: typeof AppWorkspacesRouteImport
       parentRoute: typeof AppRoute
-    }
-    '/onboarding_/sign-in': {
-      id: '/onboarding_/sign-in'
-      path: '/onboarding/sign-in'
-      fullPath: '/onboarding/sign-in'
-      preLoaderRoute: typeof OnboardingSignInRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/_app/projects/$projectId': {
       id: '/_app/projects/$projectId'
@@ -545,7 +525,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
-  OnboardingSignInRoute: OnboardingSignInRoute,
   WorkspacesWorkspaceIdVscodeRoute: WorkspacesWorkspaceIdVscodeRoute,
   HostsHostIdWorkspacesWorkspaceIdVscodeRoute:
     HostsHostIdWorkspacesWorkspaceIdVscodeRoute,
