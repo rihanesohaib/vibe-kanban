@@ -514,7 +514,8 @@
     "permissionPlan": "計畫",
     "agent": "代理",
     "default": "預設",
-    "model": "模型"
+    "model": "模型",
+    "unavailable": "{{model}}（無法使用，改用 Auto）"
   },
   "crashScreen": {
     "title": "發生了錯誤",

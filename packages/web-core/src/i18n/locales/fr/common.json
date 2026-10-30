@@ -514,7 +514,8 @@
     "permissionPlan": "Plan",
     "agent": "Agent",
     "default": "Par défaut",
-    "model": "Modèle"
+    "model": "Modèle",
+    "unavailable": "{{model}} (indisponible, Auto utilisé)"
   },
   "crashScreen": {
     "title": "Une erreur est survenue",
