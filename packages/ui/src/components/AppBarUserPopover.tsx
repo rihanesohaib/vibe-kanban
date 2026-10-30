@@ -33,7 +33,8 @@ interface AppBarUserPopoverProps {
   onOrgSelect: (orgId: string) => void;
   onOrgSettings?: (orgId: string) => void;
   onSettings?: () => void;
-  onSignIn: () => void;
+  /** Omit to hide sign-in (local-only installs). */
+  onSignIn?: () => void;
   onLogout: () => void;
   onAvatarError: () => void;
 }
@@ -71,18 +72,20 @@ export function AppBarUserPopover({
               'hover:bg-panel/70',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand'
             )}
-            aria-label="Sign in"
+            aria-label={onSignIn ? 'Sign in' : settingsLabel}
           >
             <UserIcon className="size-icon-sm" weight="bold" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="right" align="end" className="min-w-[200px]">
-          <DropdownMenuItem icon={SignInIcon} onClick={onSignIn}>
-            {t('signIn')}
-          </DropdownMenuItem>
+          {onSignIn && (
+            <DropdownMenuItem icon={SignInIcon} onClick={onSignIn}>
+              {t('signIn')}
+            </DropdownMenuItem>
+          )}
           {onSettings && (
             <>
-              <DropdownMenuSeparator />
+              {onSignIn && <DropdownMenuSeparator />}
               <DropdownMenuItem icon={GearIcon} onClick={onSettings}>
                 {settingsLabel}
               </DropdownMenuItem>

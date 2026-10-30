@@ -53,6 +53,8 @@ interface AppBarProps {
   onWorkspacesClick: () => void;
   onHostClick?: (hostId: string, status: AppBarHostStatus) => void;
   showWorkspacesButton?: boolean;
+  /** Hosts, kanban projects and export sections; they all need the cloud. */
+  showCloudSections?: boolean;
   onProjectClick: (projectId: string) => void;
   onProjectsDragEnd: (result: DropResult) => void;
   isSavingProjectOrder?: boolean;
@@ -205,6 +207,7 @@ export function AppBar({
   onWorkspacesClick,
   onHostClick,
   showWorkspacesButton = true,
+  showCloudSections = true,
   onProjectClick,
   onProjectsDragEnd,
   isSavingProjectOrder,
@@ -246,7 +249,7 @@ export function AppBar({
     });
   }
 
-  if (hosts.length > 0 || onPairHostClick) {
+  if (showCloudSections && (hosts.length > 0 || onPairHostClick)) {
     sections.push({
       key: 'remote',
       label: 'Remote',
@@ -320,7 +323,7 @@ export function AppBar({
     });
   }
 
-  if (projectSectionItems.length > 0) {
+  if (showCloudSections && projectSectionItems.length > 0) {
     sections.push({
       key: 'projects',
       label: 'Projects',
@@ -328,7 +331,7 @@ export function AppBar({
     });
   }
 
-  if (isSignedIn && onExportClick) {
+  if (showCloudSections && isSignedIn && onExportClick) {
     sections.push({
       key: 'export',
       label: 'Export',

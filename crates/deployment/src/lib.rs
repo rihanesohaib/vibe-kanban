@@ -33,7 +33,6 @@ use thiserror::Error;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use trusted_key_auth::runtime::TrustedKeyAuthRuntime;
-use utils::sentry as sentry_utils;
 use worktree_manager::WorktreeError;
 
 #[derive(Debug, Clone, Copy, Error)]
@@ -126,16 +125,6 @@ pub trait Deployment: Clone + Send + Sync + 'static {
 
     fn remote_client(&self) -> Result<RemoteClient, RemoteClientNotConfigured> {
         Err(RemoteClientNotConfigured)
-    }
-
-    async fn update_sentry_scope(&self) -> Result<(), DeploymentError> {
-        let user_id = self.user_id();
-        let config = self.config().read().await;
-        let username = config.github.username.as_deref();
-        let email = config.github.primary_email.as_deref();
-        sentry_utils::configure_user_scope(user_id, username, email);
-
-        Ok(())
     }
 
     async fn track_if_analytics_allowed(&self, event_name: &str, properties: Value) {

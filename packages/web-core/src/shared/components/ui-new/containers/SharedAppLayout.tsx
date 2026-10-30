@@ -14,6 +14,7 @@ import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import { useUiPreferencesStore } from '@/shared/stores/useUiPreferencesStore';
 import { cn } from '@/shared/lib/utils';
 import { isTauriMac } from '@/shared/lib/platform';
+import { isRemoteEnabled } from '@/shared/lib/remoteApi';
 
 import { NavbarContainer } from './NavbarContainer';
 import { AppBar, type AppBarHostStatus } from '@vibe/ui/components/AppBar';
@@ -65,6 +66,7 @@ export function SharedAppLayout() {
     (s) => s.isLeftSidebarVisible
   );
   const { isSignedIn } = useAuth();
+  const remoteEnabled = isRemoteEnabled();
   const { appVersion } = useUserSystem();
   const updateVersion = useAppUpdateStore((s) => s.updateVersion);
   const restartForUpdate = useAppUpdateStore((s) => s.restart);
@@ -174,7 +176,9 @@ export function SharedAppLayout() {
   const isWorkspacesActive = isLocalWorkspacesDestination(currentDestination);
   const isExportActive = currentDestination?.kind === 'export';
   const showCloudShutdownBanner =
-    isExportActive || (isSignedIn && isProjectDestination(currentDestination));
+    remoteEnabled &&
+    (isExportActive ||
+      (isSignedIn && isProjectDestination(currentDestination)));
   const isWorkspaceSidebarPreviewEnabled =
     !isMobile && isWorkspacesActive && !isLeftSidebarVisible;
   const activeProjectId = projectDestination?.projectId ?? null;
@@ -339,6 +343,7 @@ export function SharedAppLayout() {
               onWorkspacesClick={handleWorkspacesClick}
               onHostClick={handleHostClick}
               onPairHostClick={handlePairHostClick}
+              showCloudSections={remoteEnabled}
               onProjectClick={handleProjectClick}
               onProjectsDragEnd={handleProjectsDragEnd}
               isSavingProjectOrder={isSavingProjectOrder}
@@ -479,7 +484,7 @@ export function SharedAppLayout() {
 
             {/* Project list */}
             <div className="flex-1 overflow-y-auto p-2">
-              {isSignedIn ? (
+              {!remoteEnabled ? null : isSignedIn ? (
                 orderedProjects.map((project) => (
                   <button
                     type="button"

@@ -35,7 +35,6 @@ import {
   ArrowUpIcon,
   HighlighterIcon,
   ListIcon,
-  MegaphoneIcon,
   QuestionIcon,
   ArrowsLeftRightIcon,
   ArrowFatLineUpIcon,
@@ -53,7 +52,7 @@ import {
 } from '@/shared/stores/useUiPreferencesStore';
 
 import { workspacesApi, relayApi, repoApi } from '@/shared/lib/api';
-import { bulkUpdateIssues } from '@/shared/lib/remoteApi';
+import { bulkUpdateIssues, isRemoteEnabled } from '@/shared/lib/remoteApi';
 import { workspaceRecordKeys } from '@/shared/hooks/useWorkspaceRecord';
 import { workspaceRepoKeys } from '@/shared/hooks/useWorkspaceRepo';
 import { repoBranchKeys } from '@/shared/hooks/useRepoBranches';
@@ -69,7 +68,6 @@ import { CreatePRDialog } from '@/shared/dialogs/command-bar/CreatePRDialog';
 import { getIdeName } from '@/shared/lib/ideName';
 import { EditorSelectionDialog } from '@/shared/dialogs/command-bar/EditorSelectionDialog';
 import { StartReviewDialog } from '@/shared/dialogs/command-bar/StartReviewDialog';
-import posthog from 'posthog-js';
 import { WorkspacesGuideDialog } from '@/shared/dialogs/shared/WorkspacesGuideDialog';
 import { SettingsDialog } from '@/shared/dialogs/settings/SettingsDialog';
 import { CreateWorkspaceFromPrDialog } from '@/shared/dialogs/command-bar/CreateWorkspaceFromPrDialog';
@@ -445,7 +443,7 @@ export const Actions = {
     label: 'Sign In',
     icon: SignInIcon,
     requiresTarget: ActionTargetType.NONE,
-    isVisible: (ctx) => !ctx.isSignedIn,
+    isVisible: (ctx) => isRemoteEnabled() && !ctx.isSignedIn,
     execute: async () => {
       const { OAuthDialog } =
         await import('@/shared/dialogs/global/OAuthDialog');
@@ -474,16 +472,6 @@ export const Actions = {
       ctx.appNavigation.goToWorkspaces();
     },
   } satisfies GlobalActionDefinition,
-
-  Feedback: {
-    id: 'feedback',
-    label: 'Give Feedback',
-    icon: MegaphoneIcon,
-    requiresTarget: ActionTargetType.NONE,
-    execute: () => {
-      posthog.displaySurvey('019bb6e8-3d36-0000-1806-7330cd3c727e');
-    },
-  },
 
   WorkspacesGuide: {
     id: 'workspaces-guide',
@@ -1541,7 +1529,6 @@ export const NavbarActionGroups = {
     Actions.ToggleRightSidebar,
     NavbarDivider,
     Actions.OpenCommandBar,
-    Actions.Feedback,
     Actions.WorkspacesGuide,
     Actions.ProjectsGuide,
     Actions.Settings,

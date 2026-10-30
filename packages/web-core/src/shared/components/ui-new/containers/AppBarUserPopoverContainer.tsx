@@ -7,6 +7,7 @@ import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import { useActions } from '@/shared/hooks/useActions';
 import { Actions } from '@/shared/actions';
+import { isRemoteEnabled } from '@/shared/lib/remoteApi';
 
 interface AppBarUserPopoverContainerProps {
   organizations: OrganizationWithRole[];
@@ -61,7 +62,7 @@ export function AppBarUserPopoverContainer({
       onOpenChange={setOpen}
       onOrgSelect={onOrgSelect}
       onOrgSettings={handleOrgSettings}
-      onSignIn={handleSignIn}
+      onSignIn={isRemoteEnabled() ? handleSignIn : undefined}
       onLogout={handleLogout}
       onAvatarError={() => setAvatarError(true)}
       onSettings={handleSettings}

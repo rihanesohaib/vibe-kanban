@@ -16,7 +16,7 @@ use relay_hosts::RelayHosts;
 use relay_webrtc::WebRtcHost;
 use remote_info::RemoteInfo;
 use services::services::{
-    analytics::{AnalyticsConfig, AnalyticsContext, AnalyticsService, generate_user_id},
+    analytics::{AnalyticsContext, AnalyticsService, generate_user_id},
     approvals::Approvals,
     auth::AuthContext,
     config::{Config, load_config_from_file, save_config_to_file},
@@ -116,6 +116,9 @@ impl Deployment for LocalDeployment {
             }
         }
 
+        // Telemetry is not supported in this build.
+        raw_config.analytics_enabled = false;
+
         // Always save config (may have been migrated or version updated)
         save_config_to_file(&raw_config, &config_path()).await?;
 
@@ -126,7 +129,7 @@ impl Deployment for LocalDeployment {
 
         let config = Arc::new(RwLock::new(raw_config));
         let user_id = generate_user_id();
-        let analytics = AnalyticsConfig::new().map(AnalyticsService::new);
+        let analytics: Option<AnalyticsService> = None;
         let git = GitService::new();
         let repo = RepoService::new();
         let msg_stores = Arc::new(RwLock::new(HashMap::new()));
@@ -168,12 +171,14 @@ impl Deployment for LocalDeployment {
         let profile_cache = Arc::new(RwLock::new(None));
         let auth_context = AuthContext::new(oauth_credentials.clone(), profile_cache.clone());
 
+        // Cloud features are opt-in at runtime only; with these unset the app is
+        // local-only and never contacts a remote API or relay.
         let api_base = std::env::var("VK_SHARED_API_BASE")
             .ok()
-            .or_else(|| option_env!("VK_SHARED_API_BASE").map(|s| s.to_string()));
+            .filter(|s| !s.trim().is_empty());
         let relay_api_base = std::env::var("VK_SHARED_RELAY_API_BASE")
             .ok()
-            .or_else(|| option_env!("VK_SHARED_RELAY_API_BASE").map(|s| s.to_string()));
+            .filter(|s| !s.trim().is_empty());
         let remote_info = RemoteInfo::new();
         if let Some(api_base) = api_base.clone() {
             remote_info
@@ -198,7 +203,7 @@ impl Deployment for LocalDeployment {
                 }
             },
             None => {
-                tracing::info!("VK_SHARED_API_BASE not set; remote features disabled");
+                tracing::info!("VK_SHARED_API_BASE not set; running local-only");
                 Err(RemoteClientNotConfigured)
             }
         };
