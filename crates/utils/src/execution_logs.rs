@@ -47,8 +47,11 @@ impl ExecutionLogWriter {
         &self.path
     }
 
+    /// Appends and flushes, so the line survives the server exiting right after
+    /// (tokio's `File` otherwise finishes writes in the background).
     pub async fn append_jsonl_line(&mut self, jsonl_line: &str) -> std::io::Result<()> {
-        self.file.write_all(jsonl_line.as_bytes()).await
+        self.file.write_all(jsonl_line.as_bytes()).await?;
+        self.file.flush().await
     }
 }
 
@@ -100,4 +103,30 @@ fn resolve_process_logs_session_dir(root: &Path, session_id: Uuid) -> PathBuf {
     root.join(EXECUTION_LOGS_DIRNAME)
         .join(uuid_prefix2(session_id))
         .join(session_id.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn appended_line_is_on_disk_before_the_writer_is_dropped() {
+        let path = std::env::temp_dir()
+            .join(format!("vk-exec-log-{}", Uuid::new_v4()))
+            .join("process.jsonl");
+        let mut writer = ExecutionLogWriter::new(path.clone()).await.unwrap();
+
+        writer
+            .append_jsonl_line("{\"Stdout\":\"partial output\"}\n")
+            .await
+            .unwrap();
+
+        // Read with blocking std I/O while the writer is still alive, as a
+        // process that exits right now would leave the file.
+        let on_disk = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(on_disk, "{\"Stdout\":\"partial output\"}\n");
+
+        drop(writer);
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
 }

@@ -49,7 +49,15 @@
     "subagent": {
       "defaultType": "Sous-agent"
     },
-    "loadingEarlierMessages": "Chargement des messages pr\u00e9c\u00e9dents"
+    "loadingEarlierMessages": "Chargement des messages pr\u00e9c\u00e9dents",
+    "runOutcome": {
+      "stopped": "Exécution arrêtée par vous",
+      "interrupted": "Exécution interrompue (le service a redémarré ou le processus de l'agent a été arrêté)",
+      "failed": "L'exécution a échoué (code {{code}})",
+      "stoppedShort": "Arrêtée",
+      "interruptedShort": "Interrompue",
+      "failedShort": "Échec (code {{code}})"
+    }
   },
   "folderPicker": {
     "legend": "Cliquez sur les noms de dossiers pour naviguer • Utilisez les boutons d'action pour sélectionner",

@@ -415,12 +415,11 @@ impl ExecutionProcess {
             .ok_or(sqlx::Error::RowNotFound)
     }
 
+    /// True once something other than the exit monitor (Stop, shutdown) has
+    /// already recorded how the process ended.
     pub async fn was_stopped(pool: &SqlitePool, id: Uuid) -> bool {
         if let Ok(exp_process) = Self::find_by_id(pool, id).await
-            && exp_process.is_some_and(|ep| {
-                ep.status == ExecutionProcessStatus::Killed
-                    || ep.status == ExecutionProcessStatus::Completed
-            })
+            && exp_process.is_some_and(|ep| ep.status != ExecutionProcessStatus::Running)
         {
             return true;
         }

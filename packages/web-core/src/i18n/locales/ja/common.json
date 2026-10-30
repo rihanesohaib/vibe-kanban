@@ -62,7 +62,15 @@
     "subagent": {
       "defaultType": "サブエージェント"
     },
-    "loadingEarlierMessages": "以前のメッセージを読み込み中"
+    "loadingEarlierMessages": "以前のメッセージを読み込み中",
+    "runOutcome": {
+      "stopped": "実行を停止しました",
+      "interrupted": "実行が中断されました（サービスの再起動またはエージェントプロセスの終了）",
+      "failed": "実行に失敗しました（終了コード {{code}}）",
+      "stoppedShort": "停止",
+      "interruptedShort": "中断",
+      "failedShort": "失敗（終了コード {{code}}）"
+    }
   },
   "language": {
     "browserDefault": "ブラウザ設定"

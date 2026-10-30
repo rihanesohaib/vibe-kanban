@@ -49,7 +49,15 @@
     "subagent": {
       "defaultType": "子代理"
     },
-    "loadingEarlierMessages": "正在加载早期消息"
+    "loadingEarlierMessages": "正在加载早期消息",
+    "runOutcome": {
+      "stopped": "你已停止运行",
+      "interrupted": "运行已中断（服务重启或代理进程被终止）",
+      "failed": "运行失败（退出码 {{code}}）",
+      "stoppedShort": "已停止",
+      "interruptedShort": "已中断",
+      "failedShort": "失败（退出码 {{code}}）"
+    }
   },
   "folderPicker": {
     "legend": "点击文件夹名称进行导航 • 使用操作按钮进行选择",

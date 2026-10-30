@@ -1616,8 +1616,10 @@ impl ContainerService for LocalContainerService {
                 process.id,
                 process.run_reason
             );
+            // `Killed` means the user pressed Stop; a shutdown is an
+            // interruption, recorded as failed without an exit code.
             if let Err(error) = self
-                .stop_execution(&process, ExecutionProcessStatus::Killed)
+                .stop_execution(&process, ExecutionProcessStatus::Failed)
                 .await
             {
                 tracing::error!(
