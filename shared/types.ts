@@ -482,6 +482,36 @@ export type WorkspaceSummaryResponse = { summaries: Array<WorkspaceSummary>, };
 
 export type DiffStats = { files_changed: number, lines_added: number, lines_removed: number, };
 
+export type LoadAverage = { one: number, five: number, fifteen: number, };
+
+export type ByteUsage = { used_bytes: number, total_bytes: number, };
+
+export type DiskUsage = { 
+/**
+ * Path that was measured (the first existing ancestor of the requested path).
+ */
+path: string, used_bytes: number, total_bytes: number, };
+
+export type HostStats = { os: string, cpu_count: number, load_average: LoadAverage | null, cpu_utilization_percent: number | null, memory: ByteUsage | null, swap: ByteUsage | null, workspace_disk: DiskUsage | null, root_disk: DiskUsage | null, uptime_seconds: number | null, sampled_at: string, };
+
+export type ControlCenterWorkspaceState = "running" | "waiting" | "review" | "failed" | "idle";
+
+export type ControlCenterCounts = { running: number, waiting: number, review: number, failed: number, idle: number, total: number, };
+
+export type ControlCenterRepoRef = { repo_id: string, name: string, target_branch: string, };
+
+export type ControlCenterWorkspace = { workspace_id: string, name: string | null, branch: string, repos: Array<ControlCenterRepoRef>, state: ControlCenterWorkspaceState, executor: string | null, variant: string | null, model_id: string | null, pinned: boolean, has_unseen_turns: boolean, has_running_dev_server: boolean, created_at: string, updated_at: string, latest_process_started_at: string | null, latest_process_completed_at: string | null, last_activity_at: string, 
+/**
+ * Only computed for workspaces that are not idle.
+ */
+diff_stats: DiffStats | null, };
+
+export type ControlCenterOverview = { counts: ControlCenterCounts, 
+/**
+ * Non-archived workspaces, most recently active first.
+ */
+workspaces: Array<ControlCenterWorkspace>, generated_at: string, };
+
 export type DirectoryEntry = { name: string, path: string, is_directory: boolean, is_git_repo: boolean, last_modified: bigint | null, };
 
 export type DirectoryListResponse = { entries: Array<DirectoryEntry>, current_path: string, };

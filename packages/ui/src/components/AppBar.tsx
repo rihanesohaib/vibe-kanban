@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import {
   LayoutIcon,
   DownloadSimpleIcon,
+  GaugeIcon,
   LinkIcon,
   PlusIcon,
   KanbanIcon,
@@ -51,6 +52,8 @@ interface AppBarProps {
   onCreateProject: () => void;
   onExportClick?: () => void;
   onWorkspacesClick: () => void;
+  onControlCenterClick?: () => void;
+  isControlCenterActive?: boolean;
   onHostClick?: (hostId: string, status: AppBarHostStatus) => void;
   showWorkspacesButton?: boolean;
   /** Hosts, kanban projects and export sections; they all need the cloud. */
@@ -205,6 +208,8 @@ export function AppBar({
   onCreateProject,
   onExportClick,
   onWorkspacesClick,
+  onControlCenterClick,
+  isControlCenterActive = false,
   onHostClick,
   showWorkspacesButton = true,
   showCloudSections = true,
@@ -237,6 +242,18 @@ export function AppBar({
       key: 'local',
       label: 'Local',
       items: [
+        ...(onControlCenterClick
+          ? [
+              {
+                key: 'control-center',
+                kind: 'icon-button' as const,
+                label: 'Control Center',
+                icon: GaugeIcon,
+                isActive: isControlCenterActive,
+                onClick: onControlCenterClick,
+              },
+            ]
+          : []),
         {
           key: 'local-workspaces',
           kind: 'icon-button',
