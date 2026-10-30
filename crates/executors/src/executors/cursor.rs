@@ -2,9 +2,11 @@ use core::str;
 use std::{collections::HashMap, path::Path, process::Stdio, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use command_group::AsyncGroupChild;
 use futures::StreamExt;
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 use tokio::{io::AsyncWriteExt, process::Command};
 use ts_rs::TS;
 use workspace_utils::{
@@ -33,6 +35,7 @@ use crate::{
     },
     model_selector::ModelSelectorConfig,
     profile::ExecutorConfig,
+    stdout_dup::create_stdout_pipe_writer,
 };
 
 mod mcp;
@@ -125,7 +128,10 @@ impl CursorAgent {
             .map(|base| resolve_cursor_model_name(base, self.reasoning.as_deref()))
     }
 
-    fn build_command_builder(&self) -> Result<CommandBuilder, CommandBuildError> {
+    fn build_command_builder(
+        &self,
+        model: Option<&str>,
+    ) -> Result<CommandBuilder, CommandBuildError> {
         // Headless runs must never block on the workspace trust prompt.
         let mut builder = CommandBuilder::new(Self::base_command()).params([
             "-p",
@@ -137,12 +143,108 @@ impl CursorAgent {
             builder = builder.extend_params(["--force"]);
         }
 
-        if let Some(model) = self.resolved_model() {
+        if let Some(model) = model {
             builder = builder.extend_params(["--model", model]);
         }
 
         apply_overrides(builder, &self.cmd)
     }
+
+    /// Returns the model to pass to the CLI and, when the requested model is
+    /// not offered to this account, a notice explaining the fallback to auto.
+    async fn effective_model(&self) -> (Option<String>, Option<String>) {
+        let Some(requested) = self.resolved_model() else {
+            return (None, None);
+        };
+        if requested == models::DEFAULT_MODEL_ID {
+            return (Some(requested.to_string()), None);
+        }
+        let list = models::discover_models(Self::base_command(), &self.cmd).await;
+        if models::is_known_unavailable(&list, requested) {
+            let notice = format!(
+                "Model `{requested}` is not available to this Cursor account, so this run uses Auto instead."
+            );
+            (Some(models::DEFAULT_MODEL_ID.to_string()), Some(notice))
+        } else {
+            (Some(requested.to_string()), None)
+        }
+    }
+
+    async fn spawn_with_args(
+        &self,
+        current_dir: &Path,
+        prompt: &str,
+        resume_session: Option<&str>,
+        env: &ExecutionEnv,
+    ) -> Result<SpawnedChild, ExecutorError> {
+        mcp::ensure_mcp_server_trust(self, current_dir).await;
+
+        let (model, notice) = self.effective_model().await;
+        let builder = self.build_command_builder(model.as_deref())?;
+        let command_parts = match resume_session {
+            Some(session_id) => {
+                builder.build_follow_up(&["--resume".to_string(), session_id.to_string()])?
+            }
+            None => builder.build_initial()?,
+        };
+        let (executable_path, args) = command_parts.into_resolved().await?;
+
+        let combined_prompt = self.append_prompt.combine_prompt(prompt);
+
+        let mut command = Command::new(executable_path);
+        command
+            .kill_on_drop(true)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .current_dir(current_dir)
+            .env("NPM_CONFIG_LOGLEVEL", "error")
+            .args(&args);
+
+        env.clone()
+            .with_profile(&self.cmd)
+            .apply_to_command(&mut command);
+
+        let mut child = command.group_spawn_no_window()?;
+
+        if let Some(message) = notice {
+            prepend_stdout_line(&mut child, notice_line(&message))?;
+        }
+
+        if let Some(mut stdin) = child.inner().stdin.take() {
+            stdin.write_all(combined_prompt.as_bytes()).await?;
+            stdin.shutdown().await?;
+        }
+
+        Ok(child.into())
+    }
+}
+
+/// Serialises a notice as a stdout event so it is persisted with the raw logs
+/// and replayed whenever the transcript is rebuilt.
+fn notice_line(message: &str) -> String {
+    let mut line = serde_json::json!({ "type": VK_NOTICE_TYPE, "message": message }).to_string();
+    line.push('\n');
+    line
+}
+
+const VK_NOTICE_TYPE: &str = "vk_notice";
+
+/// Replaces the child's stdout with a pipe that yields `line` first and then
+/// everything the child writes.
+fn prepend_stdout_line(child: &mut AsyncGroupChild, line: String) -> Result<(), ExecutorError> {
+    let original = child.inner().stdout.take();
+    let mut writer = create_stdout_pipe_writer(child)?;
+    tokio::spawn(async move {
+        if writer.write_all(line.as_bytes()).await.is_err() {
+            return;
+        }
+        if let Some(mut stdout) = original {
+            let _ = tokio::io::copy(&mut stdout, &mut writer).await;
+        }
+        let _ = writer.flush().await;
+    });
+    Ok(())
 }
 
 #[async_trait]
@@ -168,36 +270,7 @@ impl StandardCodingAgentExecutor for CursorAgent {
         prompt: &str,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
-        mcp::ensure_mcp_server_trust(self, current_dir).await;
-
-        let command_parts = self.build_command_builder()?.build_initial()?;
-
-        let (executable_path, args) = command_parts.into_resolved().await?;
-
-        let combined_prompt = self.append_prompt.combine_prompt(prompt);
-
-        let mut command = Command::new(executable_path);
-        command
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .env("NPM_CONFIG_LOGLEVEL", "error")
-            .args(&args);
-
-        env.clone()
-            .with_profile(&self.cmd)
-            .apply_to_command(&mut command);
-
-        let mut child = command.group_spawn_no_window()?;
-
-        if let Some(mut stdin) = child.inner().stdin.take() {
-            stdin.write_all(combined_prompt.as_bytes()).await?;
-            stdin.shutdown().await?;
-        }
-
-        Ok(child.into())
+        self.spawn_with_args(current_dir, prompt, None, env).await
     }
 
     async fn spawn_follow_up(
@@ -208,37 +281,8 @@ impl StandardCodingAgentExecutor for CursorAgent {
         _reset_to_message_id: Option<&str>,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
-        mcp::ensure_mcp_server_trust(self, current_dir).await;
-
-        let command_parts = self
-            .build_command_builder()?
-            .build_follow_up(&["--resume".to_string(), session_id.to_string()])?;
-        let (executable_path, args) = command_parts.into_resolved().await?;
-
-        let combined_prompt = self.append_prompt.combine_prompt(prompt);
-
-        let mut command = Command::new(executable_path);
-        command
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .env("NPM_CONFIG_LOGLEVEL", "error")
-            .args(&args);
-
-        env.clone()
-            .with_profile(&self.cmd)
-            .apply_to_command(&mut command);
-
-        let mut child = command.group_spawn_no_window()?;
-
-        if let Some(mut stdin) = child.inner().stdin.take() {
-            stdin.write_all(combined_prompt.as_bytes()).await?;
-            stdin.shutdown().await?;
-        }
-
-        Ok(child.into())
+        self.spawn_with_args(current_dir, prompt, Some(session_id), env)
+            .await
     }
 
     fn normalize_logs(
@@ -272,7 +316,19 @@ impl StandardCodingAgentExecutor for CursorAgent {
 
             while let Some(Ok(chunk)) = stderr.next().await {
                 let content = strip_ansi_escapes::strip_str(&chunk);
-                if content.contains(CURSOR_AUTH_REQUIRED_MSG) {
+                if let Some(message) = describe_model_rejection(&content) {
+                    let error_message = NormalizedEntry {
+                        timestamp: None,
+                        entry_type: NormalizedEntryType::ErrorMessage {
+                            error_type: NormalizedEntryError::Other,
+                        },
+                        content: message,
+                        metadata: None,
+                    };
+                    let id = entry_index_provider_stderr.next();
+                    msg_store_stderr
+                        .push_patch(ConversationPatch::add_normalized_entry(id, error_message));
+                } else if content.contains(CURSOR_AUTH_REQUIRED_MSG) {
                     let error_message = NormalizedEntry {
                         timestamp: None,
                         entry_type: NormalizedEntryType::ErrorMessage {
@@ -341,8 +397,13 @@ impl StandardCodingAgentExecutor for CursorAgent {
                     session_id_reported = true;
                 }
 
-                let is_assistant_message = matches!(cursor_json, CursorJson::Assistant { .. });
-                let is_thinking_message = matches!(cursor_json, CursorJson::Thinking { .. });
+                // Unrecognised events (e.g. approval handshakes) must not split a
+                // streaming assistant or thinking message.
+                let is_passive = matches!(cursor_json, CursorJson::Unknown);
+                let is_assistant_message =
+                    is_passive || matches!(cursor_json, CursorJson::Assistant { .. });
+                let is_thinking_message =
+                    is_passive || matches!(cursor_json, CursorJson::Thinking { .. });
                 if !is_assistant_message && current_assistant_message_index.is_some() {
                     // flush
                     current_assistant_message_index = None;
@@ -420,20 +481,14 @@ impl StandardCodingAgentExecutor for CursorAgent {
                         tool_call,
                         ..
                     } => {
-                        // Only process "started" subtype (completed contains results we currently ignore)
-                        if subtype
-                            .as_deref()
-                            .map(|s| s.eq_ignore_ascii_case("started"))
-                            .unwrap_or(false)
-                        {
-                            let tool_name = tool_call.get_name().to_string();
+                        let subtype = subtype.as_deref().unwrap_or_default();
+                        if subtype.eq_ignore_ascii_case("started") {
                             let (action_type, content) =
                                 tool_call.to_action_and_content(&worktree_str);
-
                             let entry = NormalizedEntry {
                                 timestamp: None,
                                 entry_type: NormalizedEntryType::ToolUse {
-                                    tool_name,
+                                    tool_name: tool_call.display_name(),
                                     action_type,
                                     status: ToolStatus::Created,
                                 },
@@ -446,135 +501,86 @@ impl StandardCodingAgentExecutor for CursorAgent {
                             }
                             msg_store
                                 .push_patch(ConversationPatch::add_normalized_entry(id, entry));
-                        } else if subtype
-                            .as_deref()
-                            .map(|s| s.eq_ignore_ascii_case("completed"))
-                            .unwrap_or(false)
-                            && let Some(cid) = call_id.as_ref()
-                            && let Some(&idx) = call_index_map.get(cid)
-                        {
-                            // Compute base content and action again
-                            let (mut new_action, content_str) =
-                                tool_call.to_action_and_content(&worktree_str);
-                            if let CursorToolCall::Shell { args, result } = &tool_call {
-                                // Merge stdout/stderr and derive exit status when available using typed deserialization
-                                let (stdout_val, stderr_val, exit_code) = if let Some(res) = result
-                                {
-                                    match serde_json::from_value::<CursorShellResult>(res.clone()) {
-                                        Ok(r) => {
-                                            if let Some(out) = r.into_outcome() {
-                                                (out.stdout, out.stderr, out.exit_code)
-                                            } else {
-                                                (None, None, None)
-                                            }
-                                        }
-                                        Err(_) => (None, None, None),
-                                    }
-                                } else {
-                                    (None, None, None)
-                                };
-                                let output = match (stdout_val, stderr_val) {
-                                    (Some(sout), Some(serr)) => {
-                                        let st = sout.trim();
-                                        let se = serr.trim();
-                                        if st.is_empty() && se.is_empty() {
-                                            None
-                                        } else if st.is_empty() {
-                                            Some(serr)
-                                        } else if se.is_empty() {
-                                            Some(sout)
-                                        } else {
-                                            Some(format!("STDOUT:\n{st}\n\nSTDERR:\n{se}"))
-                                        }
-                                    }
-                                    (Some(sout), None) => {
-                                        if sout.trim().is_empty() {
-                                            None
-                                        } else {
-                                            Some(sout)
-                                        }
-                                    }
-                                    (None, Some(serr)) => {
-                                        if serr.trim().is_empty() {
-                                            None
-                                        } else {
-                                            Some(serr)
-                                        }
-                                    }
-                                    (None, None) => None,
-                                };
-                                let exit_status = exit_code
-                                    .map(|code| crate::logs::CommandExitStatus::ExitCode { code });
-                                new_action = ActionType::CommandRun {
-                                    command: args.command.clone(),
-                                    result: Some(crate::logs::CommandRunResult {
-                                        exit_status,
-                                        output,
-                                    }),
-                                    category: CommandCategory::from_command(&args.command),
-                                };
-                            } else if let CursorToolCall::Mcp { args, result } = &tool_call {
-                                // Extract a human-readable text from content array using typed deserialization
-                                let md: Option<String> = if let Some(res) = result {
-                                    match serde_json::from_value::<CursorMcpResult>(res.clone()) {
-                                        Ok(r) => r.into_markdown(),
-                                        Err(_) => None,
-                                    }
-                                } else {
-                                    None
-                                };
-                                let provider = args.provider_identifier.as_deref().unwrap_or("mcp");
-                                let tname = args.tool_name.as_deref().unwrap_or(&args.name);
-                                let label = format!("mcp:{provider}:{tname}");
-                                new_action = ActionType::Tool {
-                                    tool_name: label.clone(),
-                                    arguments: Some(serde_json::json!({
-                                        "name": args.name,
-                                        "args": args.args,
-                                        "providerIdentifier": args.provider_identifier,
-                                        "toolName": args.tool_name,
-                                    })),
-                                    result: md.map(|s| crate::logs::ToolResult {
-                                        r#type: crate::logs::ToolResultValueType::Markdown,
-                                        value: serde_json::Value::String(s),
-                                    }),
-                                };
-                            }
-
+                        } else if subtype.eq_ignore_ascii_case("completed") {
+                            let (action_type, content) =
+                                tool_call.to_completed_action_and_content(&worktree_str);
+                            let status = if tool_call.is_failure() {
+                                ToolStatus::Failed
+                            } else {
+                                ToolStatus::Success
+                            };
                             let entry = NormalizedEntry {
                                 timestamp: None,
                                 entry_type: NormalizedEntryType::ToolUse {
-                                    tool_name: match &tool_call {
-                                        CursorToolCall::Mcp { args, .. } => {
-                                            let provider = args
-                                                .provider_identifier
-                                                .as_deref()
-                                                .unwrap_or("mcp");
-                                            let tname =
-                                                args.tool_name.as_deref().unwrap_or(&args.name);
-                                            format!("mcp:{provider}:{tname}")
-                                        }
-                                        _ => tool_call.get_name().to_string(),
-                                    },
-                                    action_type: new_action,
-                                    status: ToolStatus::Success,
+                                    tool_name: tool_call.display_name(),
+                                    action_type,
+                                    status,
                                 },
-                                content: content_str,
+                                content,
                                 metadata: None,
                             };
-                            msg_store.push_patch(ConversationPatch::replace(idx, entry));
+                            match call_id.as_ref().and_then(|cid| call_index_map.get(cid)) {
+                                Some(&idx) => {
+                                    msg_store.push_patch(ConversationPatch::replace(idx, entry))
+                                }
+                                None => {
+                                    let id = entry_index_provider.next();
+                                    msg_store.push_patch(ConversationPatch::add_normalized_entry(
+                                        id, entry,
+                                    ));
+                                }
+                            }
                         }
                     }
 
-                    CursorJson::Result { .. } => {
-                        // no-op; metadata-only events not surfaced
+                    CursorJson::Result {
+                        is_error, result, ..
+                    } => {
+                        if *is_error == Some(true) {
+                            let content = result
+                                .as_ref()
+                                .and_then(Value::as_str)
+                                .filter(|s| !s.trim().is_empty())
+                                .unwrap_or("Cursor reported an error without details.")
+                                .to_string();
+                            let entry = NormalizedEntry {
+                                timestamp: None,
+                                entry_type: NormalizedEntryType::ErrorMessage {
+                                    error_type: NormalizedEntryError::Other,
+                                },
+                                content,
+                                metadata: None,
+                            };
+                            let id = entry_index_provider.next();
+                            msg_store
+                                .push_patch(ConversationPatch::add_normalized_entry(id, entry));
+                        }
                     }
 
-                    CursorJson::Unknown => {
+                    CursorJson::Notice { message } => {
                         let entry = NormalizedEntry {
                             timestamp: None,
                             entry_type: NormalizedEntryType::SystemMessage,
-                            content: line,
+                            content: message.clone(),
+                            metadata: None,
+                        };
+                        let id = entry_index_provider.next();
+                        msg_store.push_patch(ConversationPatch::add_normalized_entry(id, entry));
+                    }
+
+                    CursorJson::Unknown => {
+                        // Protocol chatter (e.g. `interaction_query` approvals) is not
+                        // transcript content; only surface events that carry an error.
+                        let Some(message) = unknown_event_error_message(&line) else {
+                            tracing::debug!("Ignoring unrecognised Cursor event");
+                            continue;
+                        };
+                        let entry = NormalizedEntry {
+                            timestamp: None,
+                            entry_type: NormalizedEntryType::ErrorMessage {
+                                error_type: NormalizedEntryError::Other,
+                            },
+                            content: message,
                             metadata: None,
                         };
                         let id = entry_index_provider.next();
@@ -713,6 +719,7 @@ pub enum CursorJson {
         subtype: Option<String>, // "started" | "completed"
         #[serde(default)]
         call_id: Option<String>,
+        #[serde(deserialize_with = "deserialize_tool_call")]
         tool_call: CursorToolCall,
         #[serde(default)]
         session_id: Option<String>,
@@ -730,6 +737,9 @@ pub enum CursorJson {
         #[serde(default)]
         session_id: Option<String>,
     },
+    /// Written by this executor, not the CLI (see `notice_line`).
+    #[serde(rename = "vk_notice")]
+    Notice { message: String },
     #[serde(other)]
     Unknown,
 }
@@ -743,7 +753,7 @@ impl CursorJson {
             CursorJson::Thinking { session_id, .. } => session_id.clone(),
             CursorJson::ToolCall { session_id, .. } => session_id.clone(),
             CursorJson::Result { session_id, .. } => session_id.clone(),
-            CursorJson::Unknown => None,
+            CursorJson::Notice { .. } | CursorJson::Unknown => None,
         }
     }
 }
@@ -843,15 +853,107 @@ pub enum CursorToolCall {
         #[serde(default)]
         result: Option<serde_json::Value>,
     },
-    /// Generic fallback for unknown tools (amp.rs pattern)
-    #[serde(untagged)]
+    #[serde(rename = "webSearchToolCall")]
+    WebSearch {
+        args: CursorWebSearchArgs,
+        #[serde(default)]
+        result: Option<serde_json::Value>,
+    },
+    #[serde(rename = "webFetchToolCall")]
+    WebFetch {
+        args: CursorWebFetchArgs,
+        #[serde(default)]
+        result: Option<serde_json::Value>,
+    },
+    #[serde(rename = "taskToolCall")]
+    Task {
+        args: CursorTaskArgs,
+        #[serde(default)]
+        result: Option<serde_json::Value>,
+    },
+    /// The agent looking up tool schemas before calling a tool.
+    #[serde(rename = "getMcpToolsToolCall")]
+    GetMcpTools {
+        args: CursorGetMcpToolsArgs,
+        #[serde(default)]
+        result: Option<serde_json::Value>,
+    },
+    /// Any tool kind this normalizer does not model, or a known kind whose
+    /// arguments no longer match. Built by [`CursorToolCall::from_value`].
+    #[serde(skip_deserializing)]
     Unknown {
-        #[serde(flatten)]
-        data: std::collections::HashMap<String, serde_json::Value>,
+        name: String,
+        args: Option<serde_json::Value>,
+        result: Option<serde_json::Value>,
     },
 }
 
+/// Envelope keys the CLI adds next to the `<kind>ToolCall` payload.
+const TOOL_CALL_ENVELOPE_KEYS: &[&str] = &[
+    "toolCallId",
+    "startedAtMs",
+    "completedAtMs",
+    "hookAdditionalContexts",
+];
+
+/// Result keys the CLI uses for unsuccessful tool calls.
+const FAILURE_RESULT_KEYS: &[&str] = &["error", "failure", "rejected", "permissionDenied"];
+
+/// Argument keys that are bookkeeping rather than something a reader needs.
+const NOISY_ARG_KEYS: &[&str] = &[
+    "toolCallId",
+    "conversationId",
+    "requestId",
+    "agentId",
+    "timeout",
+    "hardTimeout",
+];
+
+fn deserialize_tool_call<'de, D>(deserializer: D) -> Result<CursorToolCall, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(CursorToolCall::from_value(Value::deserialize(
+        deserializer,
+    )?))
+}
+
 impl CursorToolCall {
+    /// Parses a `tool_call` object such as
+    /// `{"readToolCall": {...}, "toolCallId": "...", "startedAtMs": "..."}`.
+    /// Never fails: unrecognised payloads become [`CursorToolCall::Unknown`].
+    pub fn from_value(value: Value) -> Self {
+        let Value::Object(map) = value else {
+            return Self::unknown("unknown", None);
+        };
+        let kind = map
+            .keys()
+            .find(|k| k.ends_with("ToolCall"))
+            .or_else(|| {
+                map.keys()
+                    .find(|k| !TOOL_CALL_ENVELOPE_KEYS.contains(&k.as_str()))
+            })
+            .cloned();
+        let Some(kind) = kind else {
+            return Self::unknown("unknown", None);
+        };
+        let payload = map.get(&kind).cloned().unwrap_or(Value::Null);
+        let tagged = serde_json::json!({ kind.clone(): payload.clone() });
+        serde_json::from_value(tagged).unwrap_or_else(|_| {
+            let name = kind.strip_suffix("ToolCall").unwrap_or(&kind);
+            Self::unknown(name, Some(payload))
+        })
+    }
+
+    fn unknown(name: &str, payload: Option<Value>) -> Self {
+        let field = |key: &str| payload.as_ref().and_then(|p| p.get(key)).cloned();
+        CursorToolCall::Unknown {
+            name: name.to_string(),
+            args: field("args"),
+            result: field("result"),
+        }
+    }
+
     pub fn get_name(&self) -> &str {
         match self {
             CursorToolCall::Shell { .. } => "shell",
@@ -865,10 +967,91 @@ impl CursorToolCall {
             CursorToolCall::Delete { .. } => "delete",
             CursorToolCall::Todo { .. } => "todo",
             CursorToolCall::Mcp { .. } => "mcp",
-            CursorToolCall::Unknown { data } => {
-                data.keys().next().map(|s| s.as_str()).unwrap_or("unknown")
-            }
+            CursorToolCall::WebSearch { .. } => "web_search",
+            CursorToolCall::WebFetch { .. } => "web_fetch",
+            CursorToolCall::Task { .. } => "task",
+            CursorToolCall::GetMcpTools { .. } => "tool_lookup",
+            CursorToolCall::Unknown { name, .. } => name,
         }
+    }
+
+    /// Tool name shown in the transcript.
+    pub fn display_name(&self) -> String {
+        match self {
+            CursorToolCall::Mcp { args, .. } => mcp_label(args),
+            _ => self.get_name().to_string(),
+        }
+    }
+
+    fn result_value(&self) -> Option<&Value> {
+        match self {
+            CursorToolCall::Shell { result, .. }
+            | CursorToolCall::LS { result, .. }
+            | CursorToolCall::Glob { result, .. }
+            | CursorToolCall::Grep { result, .. }
+            | CursorToolCall::SemSearch { result, .. }
+            | CursorToolCall::Write { result, .. }
+            | CursorToolCall::Read { result, .. }
+            | CursorToolCall::Delete { result, .. }
+            | CursorToolCall::Todo { result, .. }
+            | CursorToolCall::Mcp { result, .. }
+            | CursorToolCall::WebSearch { result, .. }
+            | CursorToolCall::WebFetch { result, .. }
+            | CursorToolCall::Task { result, .. }
+            | CursorToolCall::GetMcpTools { result, .. }
+            | CursorToolCall::Unknown { result, .. } => result.as_ref(),
+            CursorToolCall::Edit { .. } => None,
+        }
+    }
+
+    /// Whether a completed tool call reported failure.
+    pub fn is_failure(&self) -> bool {
+        let is_failure_key = |key: &String| FAILURE_RESULT_KEYS.contains(&key.as_str());
+        if let CursorToolCall::Edit {
+            result: Some(CursorEditResult::Unknown { data }),
+            ..
+        } = self
+        {
+            return data.keys().any(is_failure_key);
+        }
+        match self.result_value() {
+            Some(Value::Object(map)) => map.keys().any(is_failure_key),
+            _ => false,
+        }
+    }
+
+    /// Like [`Self::to_action_and_content`], enriched with the tool's result.
+    pub fn to_completed_action_and_content(&self, worktree_path: &str) -> (ActionType, String) {
+        let (action, content) = self.to_action_and_content(worktree_path);
+        let action = match self {
+            CursorToolCall::Shell { args, result } => {
+                shell_action_with_result(args, result.as_ref())
+            }
+            CursorToolCall::Mcp { args, result } => ActionType::Tool {
+                tool_name: mcp_label(args),
+                arguments: Some(serde_json::json!({
+                    "name": args.name,
+                    "args": args.args,
+                    "providerIdentifier": args.provider_identifier,
+                    "toolName": args.tool_name,
+                })),
+                result: result
+                    .as_ref()
+                    .and_then(|res| serde_json::from_value::<CursorMcpResult>(res.clone()).ok())
+                    .and_then(CursorMcpResult::into_markdown)
+                    .map(crate::logs::ToolResult::markdown),
+            },
+            CursorToolCall::Task { args, result } => ActionType::TaskCreate {
+                description: args.description.clone(),
+                subagent_type: args.subagent_label(),
+                result: result
+                    .as_ref()
+                    .and_then(task_result_markdown)
+                    .map(crate::logs::ToolResult::markdown),
+            },
+            _ => action,
+        };
+        (action, content)
     }
 
     pub fn to_action_and_content(&self, worktree_path: &str) -> (ActionType, String) {
@@ -879,10 +1062,17 @@ impl CursorToolCall {
             }
             CursorToolCall::Write { args, .. } => {
                 let path = make_path_relative(&args.path, worktree_path);
+                let changes = args
+                    .contents
+                    .iter()
+                    .map(|content| FileChange::Write {
+                        content: content.clone(),
+                    })
+                    .collect();
                 (
                     ActionType::FileEdit {
                         path: path.clone(),
-                        changes: vec![],
+                        changes,
                     },
                     path,
                 )
@@ -1012,7 +1202,7 @@ impl CursorToolCall {
                 };
                 (
                     ActionType::Other {
-                        description: "List directory".to_string(),
+                        description: content.clone(),
                     },
                     content,
                 )
@@ -1042,9 +1232,8 @@ impl CursorToolCall {
                 )
             }
             CursorToolCall::Mcp { args, .. } => {
-                let provider = args.provider_identifier.as_deref().unwrap_or("mcp");
                 let tool_name = args.tool_name.as_deref().unwrap_or(&args.name);
-                let label = format!("mcp:{provider}:{tool_name}");
+                let label = mcp_label(args);
                 let summary = tool_name.to_string();
                 let mut arguments = serde_json::json!({
                     "name": args.name,
@@ -1065,14 +1254,215 @@ impl CursorToolCall {
                     summary,
                 )
             }
-            CursorToolCall::Unknown { .. } => (
-                ActionType::Other {
-                    description: format!("Tool: {}", self.get_name()),
+            CursorToolCall::WebSearch { args, .. } => (
+                ActionType::Search {
+                    query: args.search_term.clone(),
                 },
-                self.get_name().to_string(),
+                format!("Web search: {}", args.search_term),
             ),
+            CursorToolCall::WebFetch { args, .. } => (
+                ActionType::WebFetch {
+                    url: args.url.clone(),
+                },
+                args.url.clone(),
+            ),
+            CursorToolCall::Task { args, .. } => (
+                ActionType::TaskCreate {
+                    description: args.description.clone(),
+                    subagent_type: args.subagent_label(),
+                    result: None,
+                },
+                args.description.clone(),
+            ),
+            CursorToolCall::GetMcpTools { args, .. } => {
+                let description = match (&args.tool_name, &args.server) {
+                    (Some(tool), _) => format!("Look up tool: {tool}"),
+                    (None, Some(server)) => format!("List tools: {server}"),
+                    (None, None) => "List tools".to_string(),
+                };
+                (
+                    ActionType::Other {
+                        description: description.clone(),
+                    },
+                    description,
+                )
+            }
+            CursorToolCall::Unknown { name, args, .. } => {
+                let label = humanize_tool_name(name);
+                let description = match summarize_args(args.as_ref(), worktree_path) {
+                    Some(summary) => format!("{label}: {summary}"),
+                    None => label,
+                };
+                (
+                    ActionType::Other {
+                        description: description.clone(),
+                    },
+                    description,
+                )
+            }
         }
     }
+}
+
+fn mcp_label(args: &CursorMcpArgs) -> String {
+    let provider = args.provider_identifier.as_deref().unwrap_or("mcp");
+    let tool_name = args.tool_name.as_deref().unwrap_or(&args.name);
+    format!("mcp:{provider}:{tool_name}")
+}
+
+fn shell_action_with_result(args: &CursorShellArgs, result: Option<&Value>) -> ActionType {
+    let outcome = result
+        .and_then(|res| serde_json::from_value::<CursorShellResult>(res.clone()).ok())
+        .and_then(CursorShellResult::into_outcome);
+    let (stdout, stderr, exit_code) = match outcome {
+        Some(out) => (out.stdout, out.stderr, out.exit_code),
+        None => (None, None, None),
+    };
+    let non_empty = |s: Option<String>| s.filter(|s| !s.trim().is_empty());
+    let output = match (non_empty(stdout), non_empty(stderr)) {
+        (Some(out), Some(err)) => Some(format!(
+            "STDOUT:\n{}\n\nSTDERR:\n{}",
+            out.trim(),
+            err.trim()
+        )),
+        (Some(out), None) => Some(out),
+        (None, Some(err)) => Some(err),
+        (None, None) => None,
+    };
+    ActionType::CommandRun {
+        command: args.command.clone(),
+        result: Some(crate::logs::CommandRunResult {
+            exit_status: exit_code.map(|code| crate::logs::CommandExitStatus::ExitCode { code }),
+            output,
+        }),
+        category: CommandCategory::from_command(&args.command),
+    }
+}
+
+/// Collects the subagent's final messages from a `taskToolCall` result.
+fn task_result_markdown(result: &Value) -> Option<String> {
+    let outcome = result.get("success").or_else(|| result.get("failure"))?;
+    let texts: Vec<&str> = outcome
+        .get("conversationSteps")?
+        .as_array()?
+        .iter()
+        .filter_map(|step| step.pointer("/assistantMessage/text")?.as_str())
+        .filter(|text| !text.trim().is_empty())
+        .collect();
+    if texts.is_empty() {
+        None
+    } else {
+        Some(texts.join("\n\n"))
+    }
+}
+
+/// `readLintsToolCall` -> "Read lints".
+fn humanize_tool_name(name: &str) -> String {
+    let mut words = String::new();
+    for (i, c) in name.chars().enumerate() {
+        if c == '_' || c == '-' {
+            words.push(' ');
+        } else if c.is_uppercase() {
+            if i > 0 {
+                words.push(' ');
+            }
+            words.extend(c.to_lowercase());
+        } else {
+            words.push(c);
+        }
+    }
+    let words = words.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut chars = words.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => "Tool".to_string(),
+    }
+}
+
+fn truncate_chars(text: &str, max: usize) -> String {
+    if text.chars().count() <= max {
+        text.to_string()
+    } else {
+        let mut out: String = text.chars().take(max.saturating_sub(1)).collect();
+        out.push('…');
+        out
+    }
+}
+
+fn preview_arg(value: &Value, worktree_path: &str) -> Option<String> {
+    match value {
+        Value::String(s) if s.trim().is_empty() => None,
+        Value::String(s) if s.starts_with('/') => Some(make_path_relative(s, worktree_path)),
+        Value::String(s) => Some(s.lines().next().unwrap_or_default().to_string()),
+        Value::Number(n) => Some(n.to_string()),
+        Value::Bool(b) => Some(b.to_string()),
+        Value::Array(items) => {
+            let parts: Vec<String> = items
+                .iter()
+                .filter_map(|item| match item {
+                    Value::String(_) | Value::Number(_) | Value::Bool(_) => {
+                        preview_arg(item, worktree_path)
+                    }
+                    _ => None,
+                })
+                .collect();
+            (!parts.is_empty()).then(|| parts.join(", "))
+        }
+        _ => None,
+    }
+}
+
+/// A short `key: value` summary of scalar arguments, skipping ids and timing.
+fn summarize_args(args: Option<&Value>, worktree_path: &str) -> Option<String> {
+    let Value::Object(map) = args? else {
+        return None;
+    };
+    let parts: Vec<String> = map
+        .iter()
+        .filter(|(key, _)| {
+            !NOISY_ARG_KEYS.contains(&key.as_str()) && !key.ends_with("Ms") && !key.ends_with("Id")
+        })
+        .filter_map(|(key, value)| {
+            preview_arg(value, worktree_path)
+                .map(|preview| format!("{key}: {}", truncate_chars(&preview, 80)))
+        })
+        .take(3)
+        .collect();
+    (!parts.is_empty()).then(|| truncate_chars(&parts.join(", "), 160))
+}
+
+/// Rewrites the CLI's `Cannot use this model: <id>. Available models: ...`
+/// rejection into an actionable message, keeping the original text.
+fn describe_model_rejection(stderr: &str) -> Option<String> {
+    const MARKER: &str = "Cannot use this model:";
+    let start = stderr.find(MARKER)?;
+    let original = stderr[start..].trim();
+    let rest = original[MARKER.len()..].trim_start();
+    let model = rest
+        .split(". ")
+        .next()
+        .unwrap_or(rest)
+        .trim()
+        .trim_end_matches('.');
+    Some(format!(
+        "Cursor rejected model `{model}` for this account. Pick another model (Auto always works) and send again.\n\nCursor CLI: {original}"
+    ))
+}
+
+/// Extracts a message from an unrecognised event whose type mentions an error.
+fn unknown_event_error_message(line: &str) -> Option<String> {
+    let event: Value = serde_json::from_str(line).ok()?;
+    let event_type = event.get("type")?.as_str()?;
+    if !event_type.contains("error") {
+        return None;
+    }
+    event
+        .get("message")
+        .and_then(Value::as_str)
+        .or_else(|| event.pointer("/error/message").and_then(Value::as_str))
+        .or_else(|| event.get("error").and_then(Value::as_str))
+        .map(str::to_string)
+        .or_else(|| Some(format!("Cursor reported `{event_type}`")))
 }
 
 fn normalize_todo_status(status: &str) -> String {
@@ -1350,6 +1740,46 @@ pub struct CursorMcpArgs {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct CursorWebSearchArgs {
+    #[serde(alias = "searchTerm", alias = "query")]
+    pub search_term: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct CursorWebFetchArgs {
+    pub url: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct CursorTaskArgs {
+    pub description: String,
+    #[serde(default)]
+    pub prompt: Option<String>,
+    /// e.g. `{"explore": {}}`; `{"unspecified": {}}` means the default agent.
+    #[serde(default, alias = "subagentType")]
+    pub subagent_type: Option<Value>,
+}
+
+impl CursorTaskArgs {
+    pub fn subagent_label(&self) -> Option<String> {
+        let label = match self.subagent_type.as_ref()? {
+            Value::String(s) => s.clone(),
+            Value::Object(map) => map.keys().next()?.clone(),
+            _ => return None,
+        };
+        (!label.is_empty() && label != "unspecified").then_some(label)
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct CursorGetMcpToolsArgs {
+    #[serde(default)]
+    pub server: Option<String>,
+    #[serde(default, alias = "toolName")]
+    pub tool_name: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct CursorTodoItem {
     #[serde(default)]
     pub id: Option<String>,
@@ -1446,16 +1876,356 @@ mod tests {
         // Test unknown variant (captures raw data)
         let unknown_tool_json =
             r#"{"unknownTool":{"args":{"someData":"value"},"result":{"status":"success"}}}"#;
-        let parsed: CursorToolCall = serde_json::from_str(unknown_tool_json).unwrap();
+        let parsed = CursorToolCall::from_value(serde_json::from_str(unknown_tool_json).unwrap());
 
         match parsed {
-            CursorToolCall::Unknown { data } => {
-                assert!(data.contains_key("unknownTool"));
-                let unknown_tool = &data["unknownTool"];
-                assert_eq!(unknown_tool["args"]["someData"], "value");
-                assert_eq!(unknown_tool["result"]["status"], "success");
+            CursorToolCall::Unknown { name, args, result } => {
+                assert_eq!(name, "unknownTool");
+                assert_eq!(args.unwrap()["someData"], "value");
+                assert_eq!(result.unwrap()["status"], "success");
             }
             _ => panic!("Expected Unknown variant"),
         }
+    }
+
+    /// Captured from `agent -p --output-format=stream-json` (CLI 2026.10.22);
+    /// paths scrubbed to `FIXTURE_WORKTREE`.
+    const FIXTURE: &str = include_str!("cursor/fixtures/stream_json_tools.jsonl");
+    const FIXTURE_WORKTREE: &str = "/tmp/vk-fixture-repo";
+
+    fn test_executor() -> CursorAgent {
+        CursorAgent {
+            append_prompt: AppendPrompt::default(),
+            force: None,
+            model: None,
+            reasoning: None,
+            cmd: Default::default(),
+        }
+    }
+
+    /// Runs the normalizer over JSONL stdout and returns the final entries.
+    async fn normalize(stdout: &str, stderr: &str) -> Vec<NormalizedEntry> {
+        let msg_store = Arc::new(MsgStore::new());
+        for line in stdout.lines() {
+            msg_store.push_stdout(format!("{line}\n"));
+        }
+        if !stderr.is_empty() {
+            msg_store.push(workspace_utils::log_msg::LogMsg::Stderr(stderr.to_string()));
+        }
+        msg_store.push_finished();
+
+        let handles =
+            test_executor().normalize_logs(msg_store.clone(), Path::new(FIXTURE_WORKTREE));
+        for handle in handles {
+            handle.await.unwrap();
+        }
+
+        let mut entries = std::collections::BTreeMap::new();
+        for msg in msg_store.get_history() {
+            let workspace_utils::log_msg::LogMsg::JsonPatch(patch) = msg else {
+                continue;
+            };
+            for op in serde_json::to_value(&patch).unwrap().as_array().unwrap() {
+                let Some(index) = op["path"]
+                    .as_str()
+                    .and_then(|p| p.strip_prefix("/entries/"))
+                    .and_then(|i| i.parse::<usize>().ok())
+                else {
+                    continue;
+                };
+                match op["op"].as_str() {
+                    Some("add" | "replace") => {
+                        entries.insert(index, op["value"]["content"].clone());
+                    }
+                    Some("remove") => {
+                        entries.remove(&index);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        entries
+            .into_values()
+            .map(|v| serde_json::from_value(v).unwrap())
+            .collect()
+    }
+
+    fn tool_uses(entries: &[NormalizedEntry]) -> Vec<(String, ActionType, ToolStatus, String)> {
+        entries
+            .iter()
+            .filter_map(|e| match &e.entry_type {
+                NormalizedEntryType::ToolUse {
+                    tool_name,
+                    action_type,
+                    status,
+                } => Some((
+                    tool_name.clone(),
+                    action_type.clone(),
+                    status.clone(),
+                    e.content.clone(),
+                )),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn every_captured_tool_call_maps_to_a_known_kind() {
+        let mut kinds = Vec::new();
+        for line in FIXTURE.lines() {
+            let parsed: CursorJson = serde_json::from_str(line).unwrap();
+            if let CursorJson::ToolCall { tool_call, .. } = parsed {
+                assert!(
+                    !matches!(tool_call, CursorToolCall::Unknown { .. }),
+                    "unmapped tool call: {line}"
+                );
+                kinds.push(tool_call.get_name().to_string());
+            }
+        }
+        for expected in [
+            "tool_lookup",
+            "todo",
+            "shell",
+            "read",
+            "glob",
+            "grep",
+            "edit",
+            "delete",
+            "task",
+            "web_search",
+            "web_fetch",
+        ] {
+            assert!(kinds.iter().any(|k| k == expected), "missing {expected}");
+        }
+    }
+
+    #[tokio::test]
+    async fn captured_transcript_has_readable_tool_entries_without_internals() {
+        let entries = normalize(FIXTURE, "").await;
+
+        for entry in &entries {
+            let rendered = serde_json::to_string(entry).unwrap();
+            for internal in [
+                "toolCallId",
+                "startedAtMs",
+                "completedAtMs",
+                "hookAdditionalContexts",
+                "ToolCall",
+                "interaction_query",
+            ] {
+                assert!(
+                    !rendered.contains(internal),
+                    "entry leaks `{internal}`: {rendered}"
+                );
+            }
+        }
+
+        let tools = tool_uses(&entries);
+        assert!(
+            tools
+                .iter()
+                .all(|(_, _, status, _)| !matches!(status, ToolStatus::Created)),
+            "every started tool call should be completed"
+        );
+
+        let find = |pred: &dyn Fn(&ActionType) -> bool| {
+            tools
+                .iter()
+                .find(|(_, action, _, _)| pred(action))
+                .cloned()
+                .unwrap_or_else(|| panic!("tool entry not found in {tools:#?}"))
+        };
+
+        find(&|a| matches!(a, ActionType::FileRead { path } if path == "README.md"));
+        find(&|a| matches!(a, ActionType::Search { query } if query == "*.py"));
+        find(&|a| matches!(a, ActionType::Search { query } if query == "TODO"));
+        find(&|a| matches!(a, ActionType::Search { query } if query == "rust serde untagged enum"));
+        find(&|a| matches!(a, ActionType::WebFetch { url } if url == "https://example.com"));
+        find(&|a| matches!(a, ActionType::TodoManagement { todos, .. } if !todos.is_empty()));
+
+        let (_, edit, _, _) =
+            find(&|a| matches!(a, ActionType::FileEdit { path, .. } if path == "src/app.py"));
+        let ActionType::FileEdit { changes, .. } = edit else {
+            unreachable!()
+        };
+        assert!(matches!(
+            changes.as_slice(),
+            [FileChange::Edit { unified_diff, .. }] if unified_diff.contains("+    return \"hello\"")
+        ));
+
+        let (_, created, _, _) =
+            find(&|a| matches!(a, ActionType::FileEdit { path, .. } if path == "out.txt"));
+        let ActionType::FileEdit { changes, .. } = created else {
+            unreachable!()
+        };
+        assert!(matches!(
+            changes.as_slice(),
+            [FileChange::Edit { unified_diff, .. }] if unified_diff.contains("+done")
+        ));
+
+        find(&|a| {
+            matches!(a, ActionType::FileEdit { path, changes }
+                if path == "notes.txt" && matches!(changes.as_slice(), [FileChange::Delete]))
+        });
+
+        let (_, listing, status, _) = find(
+            &|a| matches!(a, ActionType::CommandRun { command, .. } if command == "ls -la && cat out.txt"),
+        );
+        assert!(matches!(status, ToolStatus::Success));
+        let ActionType::CommandRun { result, .. } = listing else {
+            unreachable!()
+        };
+        let result = result.unwrap();
+        assert!(result.output.unwrap().contains("done"));
+        assert!(matches!(
+            result.exit_status,
+            Some(crate::logs::CommandExitStatus::ExitCode { code: 0 })
+        ));
+
+        let (_, failing, status, _) =
+            find(&|a| matches!(a, ActionType::CommandRun { command, .. } if command == "exit 3"));
+        assert!(matches!(status, ToolStatus::Failed));
+        let ActionType::CommandRun { result, .. } = failing else {
+            unreachable!()
+        };
+        assert!(matches!(
+            result.unwrap().exit_status,
+            Some(crate::logs::CommandExitStatus::ExitCode { code: 3 })
+        ));
+
+        let (_, task, _, _) = find(
+            &|a| matches!(a, ActionType::TaskCreate { description, .. } if description == "Read README first line"),
+        );
+        let ActionType::TaskCreate { result, .. } = task else {
+            unreachable!()
+        };
+        let result = result.expect("subagent result");
+        assert!(result.value.as_str().unwrap().contains("# Demo"));
+
+        let (_, lookup, _, content) = find(
+            &|a| matches!(a, ActionType::Other { description } if description.starts_with("Look up tool")),
+        );
+        assert_eq!(content, "Look up tool: TodoWrite");
+        drop(lookup);
+
+        assert!(entries.iter().any(|e| {
+            matches!(e.entry_type, NormalizedEntryType::AssistantMessage)
+                && e.content
+                    .contains("All requested steps have been completed")
+        }));
+        assert!(
+            !entries.iter().any(|e| {
+                matches!(e.entry_type, NormalizedEntryType::SystemMessage)
+                    && e.content.trim_start().starts_with('{')
+            }),
+            "raw JSON should never be shown as a system message"
+        );
+    }
+
+    #[test]
+    fn unknown_tool_kind_renders_name_and_concise_args() {
+        let value = serde_json::json!({
+            "readLintsToolCall": {
+                "args": {
+                    "paths": ["/tmp/vk-fixture-repo/src/app.py"],
+                    "toolCallId": "tool_1",
+                    "conversationId": "conv_1",
+                    "requestedAtMs": "1793397921813"
+                }
+            },
+            "hookAdditionalContexts": [],
+            "toolCallId": "tool_1",
+            "startedAtMs": "1793397921813"
+        });
+        let tool_call = CursorToolCall::from_value(value);
+        assert_eq!(tool_call.get_name(), "readLints");
+        let (action, content) = tool_call.to_action_and_content(FIXTURE_WORKTREE);
+        assert_eq!(content, "Read lints: paths: src/app.py");
+        assert!(matches!(action, ActionType::Other { description } if description == content));
+    }
+
+    #[test]
+    fn known_kind_with_unexpected_args_falls_back_without_panicking() {
+        let value = serde_json::json!({
+            "readToolCall": { "args": { "file": "a.txt" }, "result": { "error": { "message": "nope" } } },
+            "toolCallId": "tool_2",
+        });
+        let tool_call = CursorToolCall::from_value(value);
+        assert!(matches!(&tool_call, CursorToolCall::Unknown { name, .. } if name == "read"));
+        assert!(tool_call.is_failure());
+        let (_, content) = tool_call.to_action_and_content(FIXTURE_WORKTREE);
+        assert_eq!(content, "Read: file: a.txt");
+    }
+
+    #[tokio::test]
+    async fn protocol_events_do_not_split_or_pollute_assistant_text() {
+        let stdout = [
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Hello"}]},"session_id":"s"}"#,
+            r#"{"type":"interaction_query","subtype":"request","query_type":"webFetchRequestQuery","query":{"id":0},"session_id":"s"}"#,
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":" world"}]},"session_id":"s"}"#,
+        ]
+        .join("\n");
+        let entries = normalize(&stdout, "").await;
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].content, "Hello world");
+    }
+
+    #[tokio::test]
+    async fn model_rejection_is_explained_in_the_transcript() {
+        let stderr =
+            "Cannot use this model: composer-2.5. Available models: auto, gpt-5.2, gpt-5-mini\n";
+        let entries = normalize("", stderr).await;
+        assert_eq!(entries.len(), 1);
+        assert!(matches!(
+            entries[0].entry_type,
+            NormalizedEntryType::ErrorMessage { .. }
+        ));
+        assert!(
+            entries[0]
+                .content
+                .starts_with("Cursor rejected model `composer-2.5` for this account.")
+        );
+        assert!(entries[0].content.contains("Available models: auto"));
+    }
+
+    #[tokio::test]
+    async fn fallback_notice_and_error_results_are_shown() {
+        let stdout = format!(
+            "{}{}",
+            notice_line(
+                "Model `composer-2.5` is not available to this Cursor account, so this run uses Auto instead."
+            ),
+            r#"{"type":"result","subtype":"error","is_error":true,"result":"Rate limit exceeded","session_id":"s"}"#
+        );
+        let entries = normalize(&stdout, "").await;
+        assert_eq!(entries.len(), 2);
+        assert!(matches!(
+            entries[0].entry_type,
+            NormalizedEntryType::SystemMessage
+        ));
+        assert!(entries[0].content.contains("uses Auto instead"));
+        assert!(matches!(
+            entries[1].entry_type,
+            NormalizedEntryType::ErrorMessage { .. }
+        ));
+        assert_eq!(entries[1].content, "Rate limit exceeded");
+    }
+
+    #[test]
+    fn command_uses_explicit_model_only_when_given() {
+        let executor = test_executor();
+        let with_model = executor
+            .build_command_builder(Some("auto"))
+            .unwrap()
+            .build_initial()
+            .unwrap();
+        let args = format!("{with_model:?}");
+        assert!(args.contains("\"--model\", \"auto\""), "{args}");
+        let without = executor
+            .build_command_builder(None)
+            .unwrap()
+            .build_initial()
+            .unwrap();
+        assert!(!format!("{without:?}").contains("--model"));
     }
 }

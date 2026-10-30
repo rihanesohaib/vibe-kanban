@@ -23,29 +23,20 @@ const FAILURE_CACHE_TTL: Duration = Duration::from_secs(60);
 
 pub const DEFAULT_MODEL_ID: &str = "auto";
 
-/// Shown when the CLI cannot be queried, and used to order discovered models so
-/// the strongest options appear first.
-const FEATURED_MODELS: &[(&str, &str)] = &[
-    ("auto", "Auto"),
-    ("claude-opus-5-thinking-high", "Claude Opus 5 1M Thinking"),
-    (
-        "claude-opus-5-thinking-high-fast",
-        "Claude Opus 5 1M Thinking Fast",
-    ),
-    ("gpt-5.6-sol-high", "GPT-5.6 Sol 1M High"),
-    ("gpt-5.6-sol-high-fast", "GPT-5.6 Sol 1M High Fast"),
-    ("gpt-5.6-sol-xhigh", "GPT-5.6 Sol 1M Extra High"),
-    ("gpt-5.6-sol-xhigh-fast", "GPT-5.6 Sol 1M Extra High Fast"),
-    (
-        "claude-sonnet-5-thinking-high",
-        "Claude Sonnet 5 1M Thinking",
-    ),
-    (
-        "claude-sonnet-5-thinking-xhigh",
-        "Claude Sonnet 5 1M Extra High Thinking",
-    ),
-    ("gpt-5.6-luna-high", "GPT-5.6 Luna 1M High"),
-    ("gemini-3.7-flash-high", "Gemini 3.7 Flash"),
+/// Orders discovered models so the strongest options appear first. Only ids the
+/// CLI actually lists are shown; these are never offered on their own.
+const FEATURED_MODEL_IDS: &[&str] = &[
+    "auto",
+    "claude-opus-5-thinking-high",
+    "claude-opus-5-thinking-high-fast",
+    "gpt-5.6-sol-high",
+    "gpt-5.6-sol-high-fast",
+    "gpt-5.6-sol-xhigh",
+    "gpt-5.6-sol-xhigh-fast",
+    "claude-sonnet-5-thinking-high",
+    "claude-sonnet-5-thinking-xhigh",
+    "gpt-5.6-luna-high",
+    "gemini-3.7-flash-high",
 ];
 
 #[derive(Debug, Clone)]
@@ -65,15 +56,26 @@ fn model(id: &str, name: &str) -> ModelInfo {
     }
 }
 
+/// Used while discovery is running or after it fails: only `auto`, which every
+/// account accepts.
 pub fn fallback_models() -> CursorModelList {
     CursorModelList {
-        models: FEATURED_MODELS
-            .iter()
-            .map(|(id, name)| model(id, name))
-            .collect(),
+        models: vec![model(DEFAULT_MODEL_ID, "Auto")],
         default_model: Some(DEFAULT_MODEL_ID.to_string()),
         error: None,
     }
+}
+
+/// True only when discovery succeeded and the CLI did not list `model_id`.
+/// Parameterized ids (`id[effort=high]`) are never listed, so they pass.
+pub fn is_known_unavailable(list: &CursorModelList, model_id: &str) -> bool {
+    if list.error.is_some() || list.models.is_empty() || model_id.contains('[') {
+        return false;
+    }
+    !list
+        .models
+        .iter()
+        .any(|m| m.id.eq_ignore_ascii_case(model_id))
 }
 
 fn is_invisible(c: char) -> bool {
@@ -171,10 +173,10 @@ pub fn parse_models_output(output: &str) -> CursorModelList {
 }
 
 fn order_featured_first(models: Vec<ModelInfo>) -> Vec<ModelInfo> {
-    let rank: HashMap<&str, usize> = FEATURED_MODELS
+    let rank: HashMap<&str, usize> = FEATURED_MODEL_IDS
         .iter()
         .enumerate()
-        .map(|(i, (id, _))| (*id, i))
+        .map(|(i, id)| (*id, i))
         .collect();
     let (mut featured, rest): (Vec<_>, Vec<_>) = models
         .into_iter()
@@ -402,12 +404,32 @@ claude-sonnet-5-thinking-xhigh  Claude Sonnet 5 1M Extra High Thinking
     }
 
     #[test]
-    fn fallback_contains_auto_and_featured_models() {
+    fn fallback_offers_only_auto() {
         let list = fallback_models();
         assert_eq!(list.default_model.as_deref(), Some(DEFAULT_MODEL_ID));
-        assert_eq!(list.models[0].id, "auto");
-        assert!(ids(&list).contains(&"claude-opus-5-thinking-high"));
-        assert!(ids(&list).contains(&"gpt-5.6-sol-xhigh-fast"));
-        assert!(list.models.iter().all(|m| is_model_id(&m.id)));
+        assert_eq!(ids(&list), vec!["auto"]);
+    }
+
+    #[test]
+    fn featured_ordering_never_adds_unlisted_ids() {
+        let list = parse_models_output("gpt-5-mini - GPT-5 Mini\nauto - Auto\n");
+        assert_eq!(ids(&list), vec!["auto", "gpt-5-mini"]);
+    }
+
+    #[test]
+    fn unavailable_only_when_discovery_succeeded_without_the_id() {
+        let discovered = parse_models_output(REAL_OUTPUT);
+        assert!(is_known_unavailable(&discovered, "composer-2.5"));
+        assert!(is_known_unavailable(&discovered, "kimi-k2.5"));
+        assert!(!is_known_unavailable(&discovered, "auto"));
+        assert!(!is_known_unavailable(&discovered, "GPT-5.2"));
+        assert!(!is_known_unavailable(
+            &discovered,
+            "claude-opus-4-8[effort=high]"
+        ));
+
+        let mut failed = fallback_models();
+        failed.error = Some("Could not list Cursor models: timed out".to_string());
+        assert!(!is_known_unavailable(&failed, "composer-2.5"));
     }
 }
