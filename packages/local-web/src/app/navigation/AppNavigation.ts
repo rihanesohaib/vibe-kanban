@@ -40,8 +40,6 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
       return { kind: 'onboarding' };
     case '/_app/workspaces':
       return { kind: 'workspaces' };
-    case '/_app/export':
-      return { kind: 'export' };
     case '/_app/hosts/$hostId/workspaces': {
       const hostId = getPathParam(routeParams, 'hostId');
       return hostId ? { kind: 'workspaces', hostId } : null;
@@ -229,7 +227,7 @@ function destinationToLocalTarget(
         params: { workspaceId: destination.workspaceId },
       } as const;
     case 'export':
-      return { to: '/export' } as const;
+      return { to: '/workspaces' } as const;
     case 'project':
       return {
         to: '/projects/$projectId',

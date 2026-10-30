@@ -58,6 +58,8 @@ interface AppBarProps {
   showWorkspacesButton?: boolean;
   /** Hosts, kanban projects and export sections; they all need the cloud. */
   showCloudSections?: boolean;
+  /** Kanban projects stored locally; shown without the cloud or a sign-in. */
+  showLocalProjects?: boolean;
   onProjectClick: (projectId: string) => void;
   onProjectsDragEnd: (result: DropResult) => void;
   isSavingProjectOrder?: boolean;
@@ -213,6 +215,7 @@ export function AppBar({
   onHostClick,
   showWorkspacesButton = true,
   showCloudSections = true,
+  showLocalProjects = false,
   onProjectClick,
   onProjectsDragEnd,
   isSavingProjectOrder,
@@ -302,8 +305,9 @@ export function AppBar({
   }
 
   const projectSectionItems: AppBarSectionItem[] = [];
+  const canManageProjects = isSignedIn || showLocalProjects;
 
-  if (!isSignedIn) {
+  if (!canManageProjects) {
     projectSectionItems.push({
       key: 'kanban-cta',
       kind: 'kanban-cta',
@@ -328,7 +332,7 @@ export function AppBar({
     });
   }
 
-  if (isSignedIn) {
+  if (canManageProjects) {
     projectSectionItems.push({
       key: 'create-project',
       kind: 'icon-button',
@@ -340,7 +344,10 @@ export function AppBar({
     });
   }
 
-  if (showCloudSections && projectSectionItems.length > 0) {
+  if (
+    (showCloudSections || showLocalProjects) &&
+    projectSectionItems.length > 0
+  ) {
     sections.push({
       key: 'projects',
       label: 'Projects',
