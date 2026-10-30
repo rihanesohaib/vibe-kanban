@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { getFirstProjectDestination } from '@/shared/lib/firstProjectDestination';
 import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
@@ -9,6 +10,7 @@ export function RootRedirectPage() {
   const { config, loading, loginStatus } = useUserSystem();
   const setSelectedOrgId = useOrganizationStore((s) => s.setSelectedOrgId);
   const appNavigation = useAppNavigation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (loading || !config) {
@@ -23,7 +25,7 @@ export function RootRedirectPage() {
       }
 
       if (loginStatus?.status !== 'loggedin') {
-        appNavigation.goToWorkspacesCreate({ replace: true });
+        void navigate({ to: '/control-center', replace: true });
         return;
       }
 
@@ -46,13 +48,20 @@ export function RootRedirectPage() {
         return;
       }
 
-      appNavigation.goToWorkspacesCreate({ replace: true });
+      void navigate({ to: '/control-center', replace: true });
     })();
 
     return () => {
       isActive = false;
     };
-  }, [appNavigation, config, loading, loginStatus?.status, setSelectedOrgId]);
+  }, [
+    appNavigation,
+    config,
+    loading,
+    loginStatus?.status,
+    navigate,
+    setSelectedOrgId,
+  ]);
 
   return (
     <div className="h-screen bg-primary flex items-center justify-center">

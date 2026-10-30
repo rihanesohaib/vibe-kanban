@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DropResult } from '@hello-pangea/dnd';
-import { Outlet, useNavigate, useParams } from '@tanstack/react-router';
+import {
+  Outlet,
+  useLocation,
+  useNavigate,
+  useParams,
+} from '@tanstack/react-router';
 import { siDiscord, siGithub } from 'simple-icons';
 import {
   XIcon,
@@ -199,6 +204,13 @@ export function SharedAppLayout() {
     void navigate({ to: '/workspaces' });
   }, [navigate]);
 
+  const isControlCenterActive = useLocation({
+    select: (location) => location.pathname === '/control-center',
+  });
+  const handleControlCenterClick = useCallback(() => {
+    void navigate({ to: '/control-center' });
+  }, [navigate]);
+
   const handleExportClick = useCallback(() => {
     appNavigation.goToExport();
   }, [appNavigation]);
@@ -337,6 +349,8 @@ export function SharedAppLayout() {
               onCreateProject={handleCreateProject}
               onExportClick={handleExportClick}
               onWorkspacesClick={handleWorkspacesClick}
+              onControlCenterClick={handleControlCenterClick}
+              isControlCenterActive={isControlCenterActive}
               onHostClick={handleHostClick}
               onPairHostClick={handlePairHostClick}
               onProjectClick={handleProjectClick}
