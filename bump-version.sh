@@ -38,7 +38,6 @@ node -e "
 
 git add package.json Cargo.lock pnpm-lock.yaml npx-cli/package.json npx-cli/package-lock.json packages/local-web/package.json crates/tauri-app/tauri.conf.json
 git add $(find . -name Cargo.toml)
-[ -f crates/remote/Cargo.lock ] && git add crates/remote/Cargo.lock || true
 [ -f crates/relay-tunnel/Cargo.lock ] && git add crates/relay-tunnel/Cargo.lock || true
 git commit -m "chore: bump version to $NEW_VERSION"
 git tag -a "$NEW_TAG" -m "Release $NEW_TAG"
