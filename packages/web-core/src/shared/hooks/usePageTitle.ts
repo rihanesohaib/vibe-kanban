@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-const BASE_TITLE = 'Agent Control Center';
+const BASE_TITLE = 'JARVIS';
 
 /**
  * Sets the document title based on the given parts.

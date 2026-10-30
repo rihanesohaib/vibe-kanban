@@ -87,7 +87,7 @@
           "host": {
             "label": "Host SSH Remoto (Opcional)",
             "placeholder": "ej., nombre de host o dirección IP",
-            "helper": "Configura esto si Vibe Kanban se ejecuta en un servidor remoto. Cuando se establece, al hacer clic en \"Abrir en Editor\" se generará una URL para abrir tu editor a través de SSH en lugar de ejecutar un comando local."
+            "helper": "Configura esto si JARVIS se ejecuta en un servidor remoto. Cuando se establece, al hacer clic en \"Abrir en Editor\" se generará una URL para abrir tu editor a través de SSH en lugar de ejecutar un comando local."
           },
           "user": {
             "label": "Usuario SSH Remoto (Opcional)",
@@ -217,7 +217,7 @@
       },
       "privacy": {
         "title": "Privacidad",
-        "description": "Ayuda a mejorar Vibe-Kanban compartiendo datos de uso anónimos.",
+        "description": "Ayuda a mejorar JARVIS compartiendo datos de uso anónimos.",
         "telemetry": {
           "label": "Habilitar Telemetría",
           "helper": "Habilita el seguimiento anónimo para ayudar a mejorar la aplicación. No se recopilan prompts ni información del proyecto."
@@ -294,7 +294,7 @@
       },
       "about": {
         "title": "Acerca de",
-        "description": "Agent Control Center está basado en Vibe Kanban (Apache-2.0)."
+        "description": "JARVIS está basado en Vibe Kanban (Apache-2.0)."
       }
     },
     "agents": {
@@ -509,11 +509,11 @@
       },
       "remove": {
         "title": "Eliminar Repositorio",
-        "description": "Desvincular este repositorio de Vibe Kanban. Los archivos en disco no se eliminarán.",
+        "description": "Desvincular este repositorio de JARVIS. Los archivos en disco no se eliminarán.",
         "button": "Eliminar",
         "confirm": "Eliminar Repositorio",
         "dialogTitle": "¿Eliminar \"{{name}}\"?",
-        "dialogDescription": "Esto desvinculará el repositorio de Vibe Kanban. Tus archivos en disco no se verán afectados. Puedes volver a agregarlo más tarde.",
+        "dialogDescription": "Esto desvinculará el repositorio de JARVIS. Tus archivos en disco no se verán afectados. Puedes volver a agregarlo más tarde.",
         "success": "Repositorio eliminado exitosamente.",
         "error": "Error al eliminar el repositorio."
       },

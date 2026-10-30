@@ -277,7 +277,7 @@ export function OnboardingSignInPage() {
             <div className="flex justify-center">
               <img
                 src={logoSrc}
-                alt="Agent Control Center"
+                alt="JARVIS"
                 className="h-8 w-auto logo"
               />
             </div>
