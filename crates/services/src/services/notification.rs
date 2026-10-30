@@ -1,11 +1,53 @@
 use std::sync::{Arc, OnceLock};
 
 use async_trait::async_trait;
-use tokio::sync::RwLock;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use tokio::sync::{RwLock, broadcast};
+use ts_rs::TS;
 use utils::{self, command_ext::NoWindowExt};
 use uuid::Uuid;
 
 use crate::services::config::{Config, SoundFile};
+
+/// What happened to an agent run that the user may want to know about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentAlertKind {
+    Finished,
+    Failed,
+    NeedsApproval,
+    NeedsInput,
+    Merged,
+}
+
+/// A live agent event delivered to open browser tabs. `id` matches the id of
+/// the corresponding agent inbox item.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct AgentAlert {
+    pub id: String,
+    pub kind: AgentAlertKind,
+    pub title: String,
+    pub body: String,
+    pub workspace_id: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl AgentAlert {
+    pub fn run_id(execution_process_id: Uuid) -> String {
+        format!("run:{execution_process_id}")
+    }
+
+    pub fn approval_id(approval_id: &str) -> String {
+        format!("approval:{approval_id}")
+    }
+
+    pub fn merge_id(merge_id: Uuid) -> String {
+        format!("merge:{merge_id}")
+    }
+}
+
+const ALERT_CHANNEL_CAPACITY: usize = 64;
 
 /// Trait for sending push notifications. Implementations can use
 /// platform-specific OS commands, Tauri's notification plugin, etc.
@@ -40,6 +82,17 @@ pub struct DefaultPushNotifier;
 /// Cache for WSL root path from PowerShell
 static WSL_ROOT_PATH_CACHE: OnceLock<Option<String>> = OnceLock::new();
 
+/// Whether OS-level sound/notification commands have anywhere to go. A
+/// headless Linux host (no X11/Wayland session) has neither a notification
+/// daemon nor an audio sink for the user.
+fn has_local_desktop() -> bool {
+    if cfg!(target_os = "linux") && !utils::is_wsl2() {
+        return std::env::var_os("DISPLAY").is_some()
+            || std::env::var_os("WAYLAND_DISPLAY").is_some();
+    }
+    true
+}
+
 #[async_trait]
 impl PushNotifier for DefaultPushNotifier {
     async fn send(&self, title: &str, message: &str, _workspace_id: Option<Uuid>) {
@@ -58,6 +111,7 @@ impl PushNotifier for DefaultPushNotifier {
 pub struct NotificationService {
     config: Arc<RwLock<Config>>,
     push_notifier: Arc<dyn PushNotifier>,
+    alerts_tx: broadcast::Sender<AgentAlert>,
 }
 
 impl std::fmt::Debug for NotificationService {
@@ -70,17 +124,41 @@ impl std::fmt::Debug for NotificationService {
 
 impl NotificationService {
     pub fn new(config: Arc<RwLock<Config>>) -> Self {
+        let (alerts_tx, _) = broadcast::channel(ALERT_CHANNEL_CAPACITY);
         Self {
             config,
             push_notifier: get_global_push_notifier(),
+            alerts_tx,
         }
     }
 
-    /// Send both sound and push notifications if enabled.
+    /// Subscribe to live agent alerts (used by the browser alert stream).
+    pub fn subscribe(&self) -> broadcast::Receiver<AgentAlert> {
+        self.alerts_tx.subscribe()
+    }
+
+    /// Deliver an agent alert. Open browser tabs receive it and apply the
+    /// user's sound/push settings themselves; only when no tab is listening
+    /// do we fall back to OS-level notifications on this machine.
+    pub async fn alert(&self, alert: AgentAlert) {
+        if self.alerts_tx.send(alert.clone()).is_ok() {
+            return;
+        }
+        self.notify(&alert.title, &alert.body, alert.workspace_id)
+            .await;
+    }
+
+    /// Send both sound and push notifications on this machine if enabled.
     /// `workspace_id` is forwarded to the push notifier so Tauri can emit a
     /// navigation event when the notification is clicked.
     pub async fn notify(&self, title: &str, message: &str, workspace_id: Option<Uuid>) {
         let config = self.config.read().await.notifications.clone();
+        let custom_notifier = GLOBAL_PUSH_NOTIFIER.get().is_some();
+
+        if !custom_notifier && !has_local_desktop() {
+            tracing::debug!("No local desktop session; skipping OS notification '{title}'");
+            return;
+        }
 
         if config.sound_enabled {
             Self::play_sound_notification(&config.sound_file).await;
@@ -293,5 +371,59 @@ async fn wsl_to_windows_path(wsl_path: &std::path::Path) -> Option<String> {
             path_str
         );
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_alert() -> AgentAlert {
+        AgentAlert {
+            id: AgentAlert::run_id(Uuid::nil()),
+            kind: AgentAlertKind::Finished,
+            title: "Agent finished".to_string(),
+            body: "Northwind Traders".to_string(),
+            workspace_id: Some(Uuid::nil()),
+            created_at: Utc::now(),
+        }
+    }
+
+    #[tokio::test]
+    async fn alert_reaches_every_subscriber() {
+        let service = NotificationService::new(Arc::new(RwLock::new(Config::default())));
+        let mut first = service.subscribe();
+        let mut second = service.subscribe();
+
+        service.alert(sample_alert()).await;
+
+        for rx in [&mut first, &mut second] {
+            let alert = rx.recv().await.expect("alert delivered");
+            assert_eq!(alert.id, format!("run:{}", Uuid::nil()));
+            assert_eq!(alert.kind, AgentAlertKind::Finished);
+        }
+    }
+
+    #[tokio::test]
+    async fn alert_without_subscribers_does_not_panic() {
+        let mut config = Config::default();
+        config.notifications.sound_enabled = false;
+        config.notifications.push_enabled = false;
+        let service = NotificationService::new(Arc::new(RwLock::new(config)));
+        service.alert(sample_alert()).await;
+    }
+
+    #[test]
+    fn alert_ids_are_prefixed_by_source() {
+        let id = Uuid::nil();
+        assert_eq!(AgentAlert::run_id(id), format!("run:{id}"));
+        assert_eq!(AgentAlert::merge_id(id), format!("merge:{id}"));
+        assert_eq!(AgentAlert::approval_id("abc"), "approval:abc");
+    }
+
+    #[test]
+    fn alert_kind_serializes_snake_case() {
+        let json = serde_json::to_string(&AgentAlertKind::NeedsApproval).unwrap();
+        assert_eq!(json, "\"needs_approval\"");
     }
 }

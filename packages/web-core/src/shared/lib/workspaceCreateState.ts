@@ -20,8 +20,64 @@ interface LinkedIssueSource {
   title: string;
 }
 
-export const DEFAULT_WORKSPACE_CREATE_DRAFT_ID =
-  '00000000-0000-0000-0000-000000000001';
+/** The single draft id every tab shared before drafts became per tab. */
+const LEGACY_SHARED_DRAFT_ID = '00000000-0000-0000-0000-000000000001';
+const TAB_DRAFT_ID_KEY = 'jarvis.createDraftId';
+const LEGACY_DRAFT_ADOPTED_KEY = 'jarvis.legacyCreateDraftAdopted';
+const LAST_CREATE_REPOS_KEY = 'jarvis.lastCreateRepos';
+
+/**
+ * Draft id for this tab's /workspaces/create form. Kept in sessionStorage so
+ * each tab prepares its own launch and keeps it across reloads. The first tab
+ * after the upgrade adopts the old shared draft so nothing in progress is lost.
+ */
+export function getTabWorkspaceCreateDraftId(): string {
+  try {
+    const existing = sessionStorage.getItem(TAB_DRAFT_ID_KEY);
+    if (existing) return existing;
+
+    let id: string;
+    if (localStorage.getItem(LEGACY_DRAFT_ADOPTED_KEY)) {
+      id = crypto.randomUUID();
+    } else {
+      localStorage.setItem(LEGACY_DRAFT_ADOPTED_KEY, '1');
+      id = LEGACY_SHARED_DRAFT_ID;
+    }
+    sessionStorage.setItem(TAB_DRAFT_ID_KEY, id);
+    return id;
+  } catch {
+    return LEGACY_SHARED_DRAFT_ID;
+  }
+}
+
+type LastCreateRepos = NonNullable<CreateModeInitialState['preferredRepos']>;
+
+/** Remember the repos picked in the create form to seed new tabs' drafts. */
+export function rememberLastCreateRepos(repos: LastCreateRepos): void {
+  if (repos.length === 0) return;
+  try {
+    localStorage.setItem(LAST_CREATE_REPOS_KEY, JSON.stringify(repos));
+  } catch {
+    // Seeding new tabs is best effort.
+  }
+}
+
+export function getLastCreateRepos(): LastCreateRepos | null {
+  try {
+    const raw = localStorage.getItem(LAST_CREATE_REPOS_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    const repos = parsed.filter(
+      (repo): repo is LastCreateRepos[number] =>
+        typeof repo?.repo_id === 'string' &&
+        (repo.target_branch === null || typeof repo.target_branch === 'string')
+    );
+    return repos.length > 0 ? repos : null;
+  } catch {
+    return null;
+  }
+}
 
 export function buildWorkspaceCreatePrompt(
   title: string | null | undefined,
@@ -99,7 +155,7 @@ export function toDraftWorkspaceData(
 
 export async function persistWorkspaceCreateDraft(
   initialState: CreateModeInitialState,
-  draftId = DEFAULT_WORKSPACE_CREATE_DRAFT_ID,
+  draftId: string,
   runtime: AppRuntime = 'local'
 ): Promise<string | null> {
   const draftData = toDraftWorkspaceData(initialState);

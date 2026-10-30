@@ -8,7 +8,10 @@ use tokio_util::sync::CancellationToken;
 use utils::approvals::{ApprovalOutcome, ApprovalRequest, ApprovalStatus, QuestionStatus};
 use uuid::Uuid;
 
-use crate::services::{approvals::Approvals, notification::NotificationService};
+use crate::services::{
+    approvals::Approvals,
+    notification::{AgentAlert, AgentAlertKind, NotificationService},
+};
 
 type ApprovalWaiter = futures::future::Shared<futures::future::BoxFuture<'static, ApprovalOutcome>>;
 
@@ -71,27 +74,34 @@ impl ExecutorApprovalBridge {
                 })
                 .unwrap_or_else(|_| ("Unknown workspace".to_string(), None));
 
-        let (title, message) = if let Some(count) = question_count {
-            if count == 1 {
-                (
-                    format!("Question Asked: {}", workspace_name),
-                    "1 question requires an answer".to_string(),
-                )
+        let (kind, title, body) = if let Some(count) = question_count {
+            let body = if count == 1 {
+                "1 question requires an answer".to_string()
             } else {
-                (
-                    format!("Question Asked: {}", workspace_name),
-                    format!("{} questions require answers", count),
-                )
-            }
+                format!("{} questions require answers", count)
+            };
+            (
+                AgentAlertKind::NeedsInput,
+                format!("Agent needs input: {}", workspace_name),
+                body,
+            )
         } else {
             (
-                format!("Approval Needed: {}", workspace_name),
+                AgentAlertKind::NeedsApproval,
+                format!("Approval needed: {}", workspace_name),
                 format!("Tool '{}' requires approval", tool_name),
             )
         };
 
         self.notification_service
-            .notify(&title, &message, workspace_id)
+            .alert(AgentAlert {
+                id: AgentAlert::approval_id(&approval_id),
+                kind,
+                title,
+                body,
+                workspace_id,
+                created_at: request.created_at,
+            })
             .await;
 
         Ok(approval_id)

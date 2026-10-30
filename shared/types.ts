@@ -480,6 +480,28 @@ export type ControlCenterOverview = { counts: ControlCenterCounts,
  */
 workspaces: Array<ControlCenterWorkspace>, generated_at: string, };
 
+export type AgentInboxItem = { id: string, kind: AgentAlertKind, workspace_id: string, workspace_name: string, 
+/**
+ * Short human-readable detail (tool name, PR number, summary...).
+ */
+detail: string | null, created_at: string, read: boolean, };
+
+export type AgentInboxResponse = { 
+/**
+ * Newest first.
+ */
+items: Array<AgentInboxItem>, unread_count: number, };
+
+export type MarkAgentInboxReadRequest = { 
+/**
+ * Item ids to mark read. Ignored when `all` is true.
+ */
+ids: Array<string>, all: boolean, };
+
+export type AgentAlertKind = "finished" | "failed" | "needs_approval" | "needs_input" | "merged";
+
+export type AgentAlert = { id: string, kind: AgentAlertKind, title: string, body: string, workspace_id: string | null, created_at: string, };
+
 export type DirectoryEntry = { name: string, path: string, is_directory: boolean, is_git_repo: boolean, last_modified: bigint | null, };
 
 export type DirectoryListResponse = { entries: Array<DirectoryEntry>, current_path: string, };

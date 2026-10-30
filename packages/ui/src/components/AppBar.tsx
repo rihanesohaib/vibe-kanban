@@ -61,8 +61,6 @@ interface AppBarProps {
   notificationBell?: ReactNode;
   userPopover?: ReactNode;
   appVersion?: string | null;
-  updateVersion?: string | null;
-  onUpdateClick?: () => void;
 }
 
 export interface AppBarProject {
@@ -160,8 +158,6 @@ export function AppBar({
   notificationBell,
   userPopover,
   appVersion,
-  updateVersion,
-  onUpdateClick,
 }: AppBarProps) {
   const { t } = useTranslation('common');
   const sections: AppBarSection[] = [];
@@ -422,30 +418,13 @@ export function AppBar({
       <div className="mt-auto pt-base flex flex-col items-center gap-4">
         {notificationBell}
         {userPopover}
-        {updateVersion ? (
-          <Tooltip content={`Update to v${updateVersion}`} side="right">
-            <button
-              type="button"
-              onClick={onUpdateClick}
-              className={cn(
-                'flex items-center justify-center py-1 rounded-md w-10',
-                'text-[9px] font-ibm-plex-mono font-medium leading-none',
-                'bg-brand text-on-brand hover:bg-brand-hover',
-                'transition-colors cursor-pointer'
-              )}
-            >
-              Update
-            </button>
-          </Tooltip>
-        ) : (
-          appVersion && (
-            <p
-              className="text-[9px] font-ibm-plex-mono text-low leading-none truncate max-w-10 text-center"
-              title={`v${appVersion}`}
-            >
-              v{appVersion}
-            </p>
-          )
+        {appVersion && (
+          <p
+            className="text-[9px] font-ibm-plex-mono text-low leading-none truncate max-w-10 text-center"
+            title={`v${appVersion}`}
+          >
+            v{appVersion}
+          </p>
         )}
       </div>
     </div>

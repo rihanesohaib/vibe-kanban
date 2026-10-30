@@ -18,6 +18,7 @@ pub mod execution_processes;
 pub mod frontend;
 pub mod health;
 pub mod kanban;
+pub mod notifications;
 pub mod oauth;
 pub mod organizations;
 pub mod preview;
@@ -46,6 +47,7 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .merge(repo::router())
         .merge(events::router(&deployment))
         .merge(approvals::router())
+        .merge(notifications::router())
         .merge(scratch::router(&deployment))
         .merge(search::router(&deployment))
         .merge(preview::api_router())

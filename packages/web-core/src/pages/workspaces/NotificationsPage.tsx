@@ -1,116 +1,192 @@
-import { useCallback } from 'react';
-import { useRouter } from '@tanstack/react-router';
-import { BellIcon, CheckIcon, ChecksIcon } from '@phosphor-icons/react';
-import { UserAvatar } from '@vibe/ui/components/UserAvatar';
-import { useNotifications } from '@/shared/hooks/useNotifications';
-import { useNotificationMembers } from '@/shared/hooks/useNotificationMembers';
-import type { GroupedNotification } from '@/shared/lib/notifications';
+import { useCallback, useState } from 'react';
 import {
-  getGroupedNotificationSegments,
-  type MessageSegment,
-} from '@/shared/lib/notificationMessage';
+  BellIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  ChecksIcon,
+  ChatCircleDotsIcon,
+  GitMergeIcon,
+  HandIcon,
+  XCircleIcon,
+  type Icon,
+} from '@phosphor-icons/react';
+import type { AgentAlertKind, AgentInboxItem } from 'shared/types';
+import { useAgentInbox } from '@/shared/hooks/useAgentInbox';
+import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
+import { useUserSystem } from '@/shared/hooks/useUserSystem';
+import {
+  browserNotificationPermission,
+  requestBrowserNotificationPermission,
+} from '@/shared/lib/agentAlerts';
 import { formatRelativeTime } from '@/shared/lib/date';
 import { cn } from '@/shared/lib/utils';
 
-function NotificationMessage({
-  segments,
-  membersByUserId,
-}: {
-  segments: MessageSegment[];
-  membersByUserId: ReturnType<typeof useNotificationMembers>['membersByUserId'];
-}) {
+const KIND_META: Record<
+  AgentAlertKind,
+  { label: string; icon: Icon; className: string }
+> = {
+  finished: {
+    label: 'Finished',
+    icon: CheckCircleIcon,
+    className: 'text-success',
+  },
+  failed: { label: 'Failed', icon: XCircleIcon, className: 'text-error' },
+  needs_approval: {
+    label: 'Needs approval',
+    icon: HandIcon,
+    className: 'text-warning',
+  },
+  needs_input: {
+    label: 'Needs input',
+    icon: ChatCircleDotsIcon,
+    className: 'text-warning',
+  },
+  merged: { label: 'Merged', icon: GitMergeIcon, className: 'text-brand' },
+};
+
+function BrowserNotificationsBanner() {
+  const { config } = useUserSystem();
+  const [permission, setPermission] = useState(browserNotificationPermission);
+
+  if (!config?.notifications.push_enabled || permission === 'granted') {
+    return null;
+  }
+  if (permission === null) return null;
+
   return (
-    <>
-      {segments.map((seg, i) => {
-        if (seg.type === 'text') return <span key={i}>{seg.value}</span>;
-        if (seg.type === 'emphasis') {
-          return (
-            <span key={i} className="font-medium text-high">
-              {seg.value}
-            </span>
-          );
+    <div className="flex items-center justify-between gap-base px-double py-half border-b border-border bg-secondary text-sm text-normal">
+      {permission === 'denied' ? (
+        <span>
+          Browser notifications are blocked for this site. Allow them in your
+          browser&apos;s site settings to get agent alerts.
+        </span>
+      ) : (
+        <>
+          <span>Get a desktop notification when an agent needs you.</span>
+          <button
+            type="button"
+            onClick={() =>
+              void requestBrowserNotificationPermission().then(setPermission)
+            }
+            className="shrink-0 rounded-sm px-base py-half bg-brand text-on-brand hover:bg-brand-hover transition-colors cursor-pointer"
+          >
+            Enable notifications
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function InboxRow({
+  item,
+  onOpen,
+  onMarkRead,
+}: {
+  item: AgentInboxItem;
+  onOpen: (item: AgentInboxItem) => void;
+  onMarkRead: (item: AgentInboxItem) => void;
+}) {
+  const meta = KIND_META[item.kind];
+  const KindIcon = meta.icon;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(item)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen(item);
         }
-        if (seg.type === 'issue') {
-          return (
-            <span
-              key={i}
-              className="font-ibm-plex-mono text-high text-[0.95em]"
-            >
-              {seg.value}
-            </span>
-          );
-        }
-        const member = membersByUserId.get(seg.userId);
-        if (member) {
-          return (
-            <UserAvatar
-              key={i}
-              user={member}
-              className="inline-flex h-5 w-5 align-text-bottom text-[10px]"
-            />
-          );
-        }
-        return <span key={i}>Someone</span>;
-      })}
-    </>
+      }}
+      className={cn(
+        'w-full flex items-center gap-base px-double py-base text-left transition-colors cursor-pointer outline-none',
+        'hover:bg-secondary',
+        'focus-visible:bg-secondary',
+        'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-brand',
+        !item.read && 'bg-brand/5'
+      )}
+    >
+      <span
+        className={cn(
+          'shrink-0 w-2 h-2 rounded-full',
+          !item.read && 'bg-brand'
+        )}
+      />
+      <KindIcon
+        size={18}
+        weight="fill"
+        className={cn('shrink-0', meta.className)}
+        aria-hidden
+      />
+      <div className="flex-1 min-w-0">
+        <p
+          className={cn(
+            'text-base truncate',
+            item.read ? 'text-normal' : 'text-high'
+          )}
+        >
+          <span className="font-medium">{meta.label}</span>
+          <span className="text-low"> · </span>
+          {item.workspace_name}
+        </p>
+        <p className="text-sm text-low mt-0.5 truncate">
+          {item.detail ? `${item.detail} · ` : ''}
+          {formatRelativeTime(item.created_at)}
+        </p>
+      </div>
+      {!item.read && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onMarkRead(item);
+          }}
+          onKeyDown={(e) => e.stopPropagation()}
+          className={cn(
+            'shrink-0 inline-flex items-center gap-half rounded-sm px-half py-half text-sm text-low transition-colors cursor-pointer',
+            'hover:bg-secondary hover:text-normal',
+            'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand'
+          )}
+          aria-label="Mark as read"
+          title="Mark as read"
+        >
+          <CheckIcon size={14} weight="bold" />
+          <span className="hidden sm:inline">Mark as read</span>
+        </button>
+      )}
+    </div>
   );
 }
 
 export function NotificationsPage() {
-  const router = useRouter();
-  const { data, updateMany, enabled, unseenCount, groupedNotifications } =
-    useNotifications();
-  const { membersByUserId } = useNotificationMembers(data);
+  const appNavigation = useAppNavigation();
+  const { items, unreadCount, isLoading, error, markRead, markAllRead } =
+    useAgentInbox();
 
-  const markGroupSeen = useCallback(
-    (group: GroupedNotification) => {
-      if (group.unseenNotificationIds.length === 0) {
-        return;
-      }
-
-      updateMany(
-        group.unseenNotificationIds.map((notificationId) => ({
-          id: notificationId,
-          changes: { seen: true },
-        }))
-      );
+  const handleOpen = useCallback(
+    (item: AgentInboxItem) => {
+      if (!item.read) markRead([item.id]);
+      appNavigation.goToWorkspace(item.workspace_id);
     },
-    [updateMany]
+    [appNavigation, markRead]
   );
 
-  const handleClick = useCallback(
-    (group: GroupedNotification) => {
-      markGroupSeen(group);
-      const path = group.deeplinkPath;
-      if (path) {
-        router.navigate({ to: path as '/' });
-      }
-    },
-    [markGroupSeen, router]
+  const handleMarkRead = useCallback(
+    (item: AgentInboxItem) => markRead([item.id]),
+    [markRead]
   );
-
-  const handleMarkAllSeen = useCallback(() => {
-    const unseen = data.filter((n) => !n.seen);
-    if (unseen.length === 0) return;
-    updateMany(unseen.map((n) => ({ id: n.id, changes: { seen: true } })));
-  }, [data, updateMany]);
-
-  if (!enabled) {
-    return (
-      <div className="flex items-center justify-center h-full text-low">
-        Sign in to view notifications
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between px-double py-base border-b border-border">
-        <h1 className="text-xl font-medium text-high">Notifications</h1>
-        {unseenCount > 0 && (
+        <h1 className="text-xl font-medium text-high">Agent inbox</h1>
+        {unreadCount > 0 && (
           <button
             type="button"
-            onClick={handleMarkAllSeen}
+            onClick={markAllRead}
             className="flex items-center gap-1 px-base py-half text-sm text-low hover:text-normal transition-colors cursor-pointer"
           >
             <ChecksIcon size={16} />
@@ -119,77 +195,29 @@ export function NotificationsPage() {
         )}
       </div>
 
+      <BrowserNotificationsBanner />
+
       <div className="flex-1 overflow-y-auto">
-        {groupedNotifications.length === 0 ? (
+        {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-2 text-low">
             <BellIcon size={32} weight="light" />
-            <p className="text-base">No notifications yet</p>
+            <p className="text-base">
+              {error
+                ? 'Could not load agent events'
+                : isLoading
+                  ? 'Loading…'
+                  : 'No agent events in the last 7 days'}
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {groupedNotifications.map((group) => (
-              <div
-                key={group.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => handleClick(group)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleClick(group);
-                  }
-                }}
-                className={cn(
-                  'w-full flex items-center gap-base px-double py-base text-left transition-colors cursor-pointer outline-none',
-                  'hover:bg-secondary',
-                  'focus-visible:bg-secondary',
-                  'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-brand',
-                  !group.seen && 'bg-brand/5'
-                )}
-              >
-                <span
-                  className={cn(
-                    'shrink-0 w-2 h-2 rounded-full',
-                    !group.seen && 'bg-brand'
-                  )}
-                />
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={cn(
-                      'text-base truncate',
-                      group.seen ? 'text-normal' : 'text-high'
-                    )}
-                  >
-                    <NotificationMessage
-                      segments={getGroupedNotificationSegments(group)}
-                      membersByUserId={membersByUserId}
-                    />
-                  </p>
-                  <p className="text-sm text-low mt-0.5">
-                    {formatRelativeTime(group.latest.created_at)}
-                  </p>
-                </div>
-                {!group.seen && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      markGroupSeen(group);
-                    }}
-                    onKeyDown={(e) => e.stopPropagation()}
-                    className={cn(
-                      'shrink-0 inline-flex items-center gap-half rounded-sm px-half py-half text-sm text-low transition-colors cursor-pointer',
-                      'hover:bg-secondary hover:text-normal',
-                      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand'
-                    )}
-                    aria-label="Mark notification as read"
-                    title="Mark as read"
-                  >
-                    <CheckIcon size={14} weight="bold" />
-                    <span className="hidden sm:inline">Mark as read</span>
-                  </button>
-                )}
-              </div>
+            {items.map((item) => (
+              <InboxRow
+                key={item.id}
+                item={item}
+                onOpen={handleOpen}
+                onMarkRead={handleMarkRead}
+              />
             ))}
           </div>
         )}

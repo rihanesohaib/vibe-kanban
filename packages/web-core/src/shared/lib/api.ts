@@ -1,6 +1,7 @@
 // Import all necessary types from shared types
 
 import {
+  AgentInboxResponse,
   ApprovalStatus,
   ApiResponse,
   Config,
@@ -9,6 +10,7 @@ import {
   EditorType,
   CreatePrApiRequest,
   CreateTag,
+  MarkAgentInboxReadRequest,
   DirectoryListResponse,
   DirectoryEntry,
   ExecutionProcess,
@@ -1149,6 +1151,26 @@ export const approvalsApi = {
     });
 
     return handleApiResponse<ApprovalStatus>(res);
+  },
+};
+
+// Agent inbox API (local agent events behind the notification bell)
+export const AGENT_ALERT_STREAM_URL = '/api/notifications/stream';
+
+export const agentInboxApi = {
+  list: async (): Promise<AgentInboxResponse> => {
+    const res = await makeRequest('/api/notifications');
+    return handleApiResponse<AgentInboxResponse>(res);
+  },
+
+  markRead: async (
+    payload: MarkAgentInboxReadRequest
+  ): Promise<AgentInboxResponse> => {
+    const res = await makeRequest('/api/notifications/read', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return handleApiResponse<AgentInboxResponse>(res);
   },
 };
 

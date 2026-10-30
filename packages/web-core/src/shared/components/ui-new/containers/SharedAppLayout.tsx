@@ -17,7 +17,6 @@ import { useUserOrganizations } from '@/shared/hooks/useUserOrganizations';
 import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
-import { useAppUpdateStore } from '@/shared/stores/useAppUpdateStore';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentAppDestination } from '@/shared/hooks/useCurrentAppDestination';
 import {
@@ -56,8 +55,6 @@ export function SharedAppLayout() {
   const localKanban = isLocalKanbanMode();
   const kanbanEnabled = isSignedIn || localKanban;
   const { appVersion } = useUserSystem();
-  const updateVersion = useAppUpdateStore((s) => s.updateVersion);
-  const restartForUpdate = useAppUpdateStore((s) => s.restart);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isAppBarHovered, setIsAppBarHovered] = useState(false);
   const navigate = useNavigate();
@@ -297,9 +294,7 @@ export function SharedAppLayout() {
               onSignIn={handleSignIn}
               onHoverStart={() => setIsAppBarHovered(true)}
               onHoverEnd={() => setIsAppBarHovered(false)}
-              notificationBell={
-                isSignedIn ? <AppBarNotificationBellContainer /> : undefined
-              }
+              notificationBell={<AppBarNotificationBellContainer />}
               userPopover={
                 <AppBarUserPopoverContainer
                   organizations={organizations}
@@ -308,8 +303,6 @@ export function SharedAppLayout() {
                 />
               }
               appVersion={appVersion}
-              updateVersion={updateVersion}
-              onUpdateClick={restartForUpdate ?? undefined}
             />
             {/* Desktop content. */}
             <div className="relative min-h-0 overflow-hidden">
