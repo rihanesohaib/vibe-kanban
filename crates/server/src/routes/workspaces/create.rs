@@ -15,8 +15,9 @@ use uuid::Uuid;
 use crate::{
     DeploymentImpl,
     error::ApiError,
-    routes::workspaces::attachments::{
-        ImportedIssueAttachment, import_issue_attachments_from_remote,
+    routes::{
+        kanban::service,
+        workspaces::attachments::{ImportedIssueAttachment, import_issue_attachments_from_remote},
     },
 };
 
@@ -248,6 +249,18 @@ pub async fn create_and_start_workspace(
 
     if let Some(ids) = &attachment_ids {
         managed_workspace.associate_attachments(ids).await?;
+    }
+
+    if let Some(linked_issue) = &linked_issue
+        && let Err(e) = service(&deployment)
+            .link_workspace(managed_workspace.workspace.id, linked_issue.issue_id)
+            .await
+    {
+        tracing::warn!(
+            "Failed to link workspace to issue {}: {}",
+            linked_issue.issue_id,
+            e
+        );
     }
 
     if let Some(linked_issue) = &linked_issue

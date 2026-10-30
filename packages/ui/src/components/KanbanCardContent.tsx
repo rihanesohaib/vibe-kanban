@@ -127,7 +127,8 @@ export type KanbanCardContentProps<TTag extends KanbanTag = KanbanTag> = {
   description?: string | null;
   priority: PriorityLevel | null;
   tags: KanbanTag[];
-  assignees: KanbanAssigneeUser[];
+  /** Omit to hide the assignee control. */
+  assignees?: KanbanAssigneeUser[];
   pullRequests?: KanbanPullRequest[];
   relationships?: KanbanRelationship[];
   isSubIssue?: boolean;
@@ -276,18 +277,19 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
             <PriorityIcon priority={priority} />
           )}
         </div>
-        {onAssigneeClick ? (
-          <button
-            type="button"
-            onClick={onAssigneeClick}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="cursor-pointer hover:bg-secondary rounded-sm transition-colors"
-          >
+        {assignees &&
+          (onAssigneeClick ? (
+            <button
+              type="button"
+              onClick={onAssigneeClick}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="cursor-pointer hover:bg-secondary rounded-sm transition-colors"
+            >
+              <KanbanAssignee assignees={assignees} />
+            </button>
+          ) : (
             <KanbanAssignee assignees={assignees} />
-          </button>
-        ) : (
-          <KanbanAssignee assignees={assignees} />
-        )}
+          ))}
       </div>
 
       {/* Row 5: Tags, PRs, Relationships (own row to prevent overflow) */}

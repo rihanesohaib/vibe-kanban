@@ -50,6 +50,19 @@ export function isRemoteEnabled(): boolean {
   return _remoteApiBase !== '';
 }
 
+/**
+ * Without a cloud API the local backend serves projects and issues from
+ * SQLite under this base, speaking the same REST contract as the cloud.
+ */
+export const LOCAL_KANBAN_API_BASE = '/api/kanban';
+
+/** The single local user; must match `LOCAL_USER_ID` in the backend. */
+export const LOCAL_USER_ID = '6c6f6361-6c00-4000-8000-000000000002';
+
+export function isLocalKanbanMode(): boolean {
+  return !isRemoteEnabled();
+}
+
 // Backward-compatible export — consumers should migrate to getRemoteApiUrl()
 export const REMOTE_API_URL = BUILD_TIME_API_BASE;
 
@@ -58,8 +71,22 @@ export const makeRequest = async (
   options: RequestInit = {},
   retryOn401 = true
 ): Promise<Response> => {
+  if (isLocalKanbanMode()) {
+    return makeLocalKanbanRequest(path, options);
+  }
   return makeAuthenticatedRequest(getRemoteApiUrl(), path, options, retryOn401);
 };
+
+function makeLocalKanbanRequest(
+  path: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const headers = new Headers(options.headers ?? {});
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  return fetch(`${LOCAL_KANBAN_API_BASE}${path}`, { ...options, headers });
+}
 
 async function makeAuthenticatedRequest(
   baseUrl: string,

@@ -3,6 +3,7 @@ import { createShapeCollection } from '@/shared/lib/electric/collections';
 import { PROJECTS_SHAPE, type Project } from 'shared/remote-types';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
 import { useUserOrganizations } from '@/shared/hooks/useUserOrganizations';
+import { isLocalKanbanMode } from '@/shared/lib/remoteApi';
 
 interface UseAllOrganizationProjectsOptions {
   enabled?: boolean;
@@ -21,6 +22,7 @@ export function useAllOrganizationProjects(
 ) {
   const { enabled = true } = options;
   const { isSignedIn } = useAuth();
+  const canSync = isSignedIn || isLocalKanbanMode();
   const { data: orgsData } = useUserOrganizations();
 
   // Stable org IDs list — only recompute when orgsData changes
@@ -33,7 +35,7 @@ export function useAllOrganizationProjects(
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!enabled || !isSignedIn || orgIds.length === 0) {
+    if (!enabled || !canSync || orgIds.length === 0) {
       setProjects([]);
       setIsLoading(false);
       return;
@@ -87,7 +89,7 @@ export function useAllOrganizationProjects(
     return () => {
       subscriptions.forEach((s) => s.unsubscribe());
     };
-  }, [enabled, isSignedIn, orgIds]);
+  }, [enabled, canSync, orgIds]);
 
   return { data: projects, isLoading };
 }

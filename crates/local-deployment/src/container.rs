@@ -46,6 +46,7 @@ use services::services::{
     container::{ContainerError, ContainerRef, ContainerService},
     diff_stream::{self, DiffStreamHandle},
     file::FileService,
+    local_kanban::LocalKanbanService,
     notification::NotificationService,
     queued_message::QueuedMessageService,
     remote_client::RemoteClient,
@@ -752,6 +753,19 @@ impl LocalContainerService {
                         "execution_success": matches!(ctx.execution_process.status, ExecutionProcessStatus::Completed),
                         "exit_code": ctx.execution_process.exit_code,
                     })));
+                }
+
+                if matches!(
+                    &ctx.execution_process.run_reason,
+                    ExecutionProcessRunReason::CodingAgent
+                ) && matches!(
+                    &ctx.execution_process.status,
+                    ExecutionProcessStatus::Completed | ExecutionProcessStatus::Failed
+                ) && let Err(e) = LocalKanbanService::new(db.pool.clone())
+                    .on_coding_agent_finished(ctx.workspace.id)
+                    .await
+                {
+                    tracing::warn!("Failed to update issue status after agent run: {}", e);
                 }
 
                 // Sync workspace to remote after CodingAgent execution

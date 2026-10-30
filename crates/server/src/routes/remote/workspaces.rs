@@ -8,7 +8,7 @@ use axum::{
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use crate::{DeploymentImpl, error::ApiError};
+use crate::{DeploymentImpl, error::ApiError, routes::kanban::service};
 
 pub(super) fn router() -> Router<DeploymentImpl> {
     Router::new().route(
@@ -21,7 +21,8 @@ async fn get_workspace_by_local_id(
     State(deployment): State<DeploymentImpl>,
     Path(local_workspace_id): Path<Uuid>,
 ) -> Result<ResponseJson<ApiResponse<Workspace>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let workspace = client.get_workspace_by_local_id(local_workspace_id).await?;
+    let workspace = service(&deployment)
+        .get_workspace(local_workspace_id)
+        .await?;
     Ok(ResponseJson(ApiResponse::success(workspace)))
 }

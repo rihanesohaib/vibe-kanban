@@ -8,6 +8,7 @@ import '@/i18n';
 import { oauthApi } from '@/shared/lib/api';
 import { tokenManager } from '@/shared/lib/auth/tokenManager';
 import { configureAuthRuntime } from '@/shared/lib/auth/runtime';
+import { isLocalKanbanMode, LOCAL_USER_ID } from '@/shared/lib/remoteApi';
 import '@/shared/types/modals';
 import { queryClient } from '@/shared/lib/queryClient';
 import { isTauriApp } from '@/shared/lib/platform';
@@ -49,7 +50,10 @@ configureAuthRuntime({
   getToken: () => tokenManager.getToken(),
   triggerRefresh: () => tokenManager.triggerRefresh(),
   registerShape: (shape) => tokenManager.registerShape(shape),
-  getCurrentUser: () => oauthApi.getCurrentUser(),
+  getCurrentUser: () =>
+    isLocalKanbanMode()
+      ? Promise.resolve({ user_id: LOCAL_USER_ID })
+      : oauthApi.getCurrentUser(),
 });
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

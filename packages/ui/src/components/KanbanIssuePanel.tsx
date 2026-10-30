@@ -96,6 +96,7 @@ export interface KanbanIssuePanelProps {
 
   // Resolved assignee profiles for avatar display
   assigneeUsers?: IssueAssignee[];
+  showAssignees?: boolean;
 
   // Edit mode data
   issueId?: string | null;
@@ -164,6 +165,7 @@ export function KanbanIssuePanel({
   statuses,
   tags,
   assigneeUsers,
+  showAssignees = true,
   issueId,
   creatorUser,
   parentIssue,
@@ -311,8 +313,10 @@ export function KanbanIssuePanel({
             onRemoveParentIssue={onRemoveParentIssue}
             onStatusClick={() => onFormChange('statusId', formData.statusId)}
             onPriorityClick={() => onFormChange('priority', formData.priority)}
-            onAssigneeClick={() =>
-              onFormChange('assigneeIds', formData.assigneeIds)
+            onAssigneeClick={
+              showAssignees
+                ? () => onFormChange('assigneeIds', formData.assigneeIds)
+                : undefined
             }
             disabled={isSubmitting}
           />
@@ -392,9 +396,9 @@ export function KanbanIssuePanel({
               }
             }}
           >
-            {isDescriptionEditing && (
+            {isDescriptionEditing && dropzoneProps && (
               <input
-                {...(dropzoneProps?.getInputProps() as React.InputHTMLAttributes<HTMLInputElement>)}
+                {...(dropzoneProps.getInputProps() as React.InputHTMLAttributes<HTMLInputElement>)}
                 data-dropzone-input
               />
             )}

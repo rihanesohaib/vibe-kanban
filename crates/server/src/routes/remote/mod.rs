@@ -1,6 +1,10 @@
-use axum::Router;
+//! Issue-tracking API used by the MCP task server and the local web app,
+//! served from the local kanban in SQLite.
 
-use crate::DeploymentImpl;
+use axum::Router;
+use services::services::local_kanban::LocalKanbanError;
+
+use crate::{DeploymentImpl, error::ApiError};
 
 mod issue_assignees;
 mod issue_relationships;
@@ -11,6 +15,17 @@ mod projects;
 pub mod pull_requests;
 mod tags;
 mod workspaces;
+
+impl From<LocalKanbanError> for ApiError {
+    fn from(err: LocalKanbanError) -> Self {
+        match err {
+            LocalKanbanError::Database(err) => ApiError::Database(err),
+            LocalKanbanError::NotFound(_) | LocalKanbanError::Invalid(_) => {
+                ApiError::BadRequest(err.to_string())
+            }
+        }
+    }
+}
 
 pub fn router() -> Router<DeploymentImpl> {
     Router::new()

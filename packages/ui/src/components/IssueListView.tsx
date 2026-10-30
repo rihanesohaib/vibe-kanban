@@ -17,7 +17,8 @@ export interface IssueListViewProps {
   statuses: IssueListSectionStatus[];
   items: Record<string, string[]>;
   issueMap: Record<string, IssueListRowIssue>;
-  issueAssigneesMap: Record<string, KanbanAssigneeUser[]>;
+  /** Omit to hide assignees. */
+  issueAssigneesMap?: Record<string, KanbanAssigneeUser[]>;
   getTagObjectsForIssue: (issueId: string) => IssueListRowTag[];
   getResolvedRelationshipsForIssue?: (
     issueId: string

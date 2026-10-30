@@ -3,20 +3,16 @@ use api_types::{
 };
 use axum::{
     Router,
-    extract::{Json, Path, Query, State},
+    extract::{Json, Path},
     response::Json as ResponseJson,
     routing::get,
 };
-use serde::Deserialize;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
 use crate::{DeploymentImpl, error::ApiError};
 
-#[derive(Debug, Deserialize)]
-pub(super) struct ListIssueAssigneesQuery {
-    pub issue_id: Uuid,
-}
+const NOT_SUPPORTED: &str = "Assignees are not used by the single-user local kanban";
 
 pub(super) fn router() -> Router<DeploymentImpl> {
     Router::new()
@@ -30,38 +26,29 @@ pub(super) fn router() -> Router<DeploymentImpl> {
         )
 }
 
-async fn list_issue_assignees(
-    State(deployment): State<DeploymentImpl>,
-    Query(query): Query<ListIssueAssigneesQuery>,
-) -> Result<ResponseJson<ApiResponse<ListIssueAssigneesResponse>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let response = client.list_issue_assignees(query.issue_id).await?;
-    Ok(ResponseJson(ApiResponse::success(response)))
+async fn list_issue_assignees()
+-> Result<ResponseJson<ApiResponse<ListIssueAssigneesResponse>>, ApiError> {
+    Ok(ResponseJson(ApiResponse::success(
+        ListIssueAssigneesResponse {
+            issue_assignees: Vec::new(),
+        },
+    )))
 }
 
 async fn get_issue_assignee(
-    State(deployment): State<DeploymentImpl>,
-    Path(issue_assignee_id): Path<Uuid>,
+    Path(_issue_assignee_id): Path<Uuid>,
 ) -> Result<ResponseJson<ApiResponse<IssueAssignee>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let response = client.get_issue_assignee(issue_assignee_id).await?;
-    Ok(ResponseJson(ApiResponse::success(response)))
+    Err(ApiError::BadRequest(NOT_SUPPORTED.to_string()))
 }
 
 async fn create_issue_assignee(
-    State(deployment): State<DeploymentImpl>,
-    Json(request): Json<CreateIssueAssigneeRequest>,
+    Json(_request): Json<CreateIssueAssigneeRequest>,
 ) -> Result<ResponseJson<ApiResponse<MutationResponse<IssueAssignee>>>, ApiError> {
-    let client = deployment.remote_client()?;
-    let response = client.create_issue_assignee(&request).await?;
-    Ok(ResponseJson(ApiResponse::success(response)))
+    Err(ApiError::BadRequest(NOT_SUPPORTED.to_string()))
 }
 
 async fn delete_issue_assignee(
-    State(deployment): State<DeploymentImpl>,
-    Path(issue_assignee_id): Path<Uuid>,
+    Path(_issue_assignee_id): Path<Uuid>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
-    let client = deployment.remote_client()?;
-    client.delete_issue_assignee(issue_assignee_id).await?;
-    Ok(ResponseJson(ApiResponse::success(())))
+    Err(ApiError::BadRequest(NOT_SUPPORTED.to_string()))
 }

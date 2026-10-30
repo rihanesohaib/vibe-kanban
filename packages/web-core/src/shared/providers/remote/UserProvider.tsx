@@ -2,6 +2,7 @@ import { useMemo, useCallback, type ReactNode } from 'react';
 import { useShape } from '@/shared/integrations/electric/hooks';
 import { USER_WORKSPACES_SHAPE } from 'shared/remote-types';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
+import { isLocalKanbanMode } from '@/shared/lib/remoteApi';
 import {
   UserContext,
   type UserContextValue,
@@ -16,7 +17,7 @@ export function UserProvider({ children }: UserProviderProps) {
 
   // No params needed - backend gets user from auth context
   const params = useMemo(() => ({}), []);
-  const enabled = isSignedIn;
+  const enabled = isSignedIn || isLocalKanbanMode();
 
   // Shape subscriptions
   const workspacesResult = useShape(USER_WORKSPACES_SHAPE, params, { enabled });

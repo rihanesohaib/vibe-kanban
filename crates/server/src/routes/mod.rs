@@ -18,6 +18,7 @@ pub mod execution_processes;
 pub mod frontend;
 pub mod health;
 pub mod host_relay;
+pub mod kanban;
 pub mod oauth;
 pub mod organizations;
 pub mod preview;
@@ -44,6 +45,7 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .merge(tags::router(&deployment))
         .merge(oauth::router())
         .merge(organizations::router())
+        .nest("/kanban", kanban::router())
         .merge(filesystem::router())
         .merge(repo::router())
         .merge(events::router(&deployment))

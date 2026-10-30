@@ -86,6 +86,19 @@ impl DBService {
         Ok(DBService { pool })
     }
 
+    /// Fully migrated private in-memory database, for tests.
+    pub async fn new_in_memory() -> Result<DBService, Error> {
+        let options = SqliteConnectOptions::from_str("sqlite::memory:")?;
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .idle_timeout(None)
+            .max_lifetime(None)
+            .connect_with(options)
+            .await?;
+        run_migrations(&pool).await?;
+        Ok(DBService { pool })
+    }
+
     pub async fn new_migration_pool() -> Result<Pool<Sqlite>, Error> {
         let database_url = format!(
             "sqlite://{}",

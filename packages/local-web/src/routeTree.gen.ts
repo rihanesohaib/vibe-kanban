@@ -13,7 +13,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AppControlCenterRouteImport } from './routes/_app.control-center'
-import { Route as AppExportRouteImport } from './routes/_app.export'
 import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
 import { Route as AppWorkspacesRouteImport } from './routes/_app.workspaces'
 import { Route as AppProjectsProjectIdRouteImport } from './routes/_app.projects.$projectId'
@@ -50,11 +49,6 @@ const OnboardingRoute = OnboardingRouteImport.update({
 const AppControlCenterRoute = AppControlCenterRouteImport.update({
   id: '/control-center',
   path: '/control-center',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppExportRoute = AppExportRouteImport.update({
-  id: '/export',
-  path: '/export',
   getParentRoute: () => AppRoute,
 } as any)
 const AppNotificationsRoute = AppNotificationsRouteImport.update({
@@ -170,7 +164,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRoute
   '/control-center': typeof AppControlCenterRoute
-  '/export': typeof AppExportRoute
   '/notifications': typeof AppNotificationsRoute
   '/workspaces': typeof AppWorkspacesRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
@@ -194,7 +187,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRoute
   '/control-center': typeof AppControlCenterRoute
-  '/export': typeof AppExportRoute
   '/notifications': typeof AppNotificationsRoute
   '/workspaces': typeof AppWorkspacesRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
@@ -220,7 +212,6 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/_app/control-center': typeof AppControlCenterRoute
-  '/_app/export': typeof AppExportRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/workspaces': typeof AppWorkspacesRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRoute
@@ -246,7 +237,6 @@ export interface FileRouteTypes {
     | '/'
     | '/onboarding'
     | '/control-center'
-    | '/export'
     | '/notifications'
     | '/workspaces'
     | '/projects/$projectId'
@@ -270,7 +260,6 @@ export interface FileRouteTypes {
     | '/'
     | '/onboarding'
     | '/control-center'
-    | '/export'
     | '/notifications'
     | '/workspaces'
     | '/projects/$projectId'
@@ -295,7 +284,6 @@ export interface FileRouteTypes {
     | '/_app'
     | '/onboarding'
     | '/_app/control-center'
-    | '/_app/export'
     | '/_app/notifications'
     | '/_app/workspaces'
     | '/_app/projects/$projectId'
@@ -352,13 +340,6 @@ declare module '@tanstack/react-router' {
       path: '/control-center'
       fullPath: '/control-center'
       preLoaderRoute: typeof AppControlCenterRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/export': {
-      id: '/_app/export'
-      path: '/export'
-      fullPath: '/export'
-      preLoaderRoute: typeof AppExportRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/notifications': {
@@ -492,7 +473,6 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppControlCenterRoute: typeof AppControlCenterRoute
-  AppExportRoute: typeof AppExportRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppWorkspacesRoute: typeof AppWorkspacesRoute
   AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRoute
@@ -513,7 +493,6 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppControlCenterRoute: AppControlCenterRoute,
-  AppExportRoute: AppExportRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppWorkspacesRoute: AppWorkspacesRoute,
   AppProjectsProjectIdRoute: AppProjectsProjectIdRoute,
