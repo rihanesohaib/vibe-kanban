@@ -1,6 +1,6 @@
 {
-  "name": "Vibe Kanban",
-  "short_name": "VK",
+  "name": "Agent Control Center",
+  "short_name": "ACC",
   "icons": [
     {
       "src": "/favicon-vk-light.svg",
@@ -20,7 +20,7 @@
       "type": "image/png"
     }
   ],
-  "theme_color": "#f2f2f2",
-  "background_color": "#f2f2f2",
+  "theme_color": "#F6F7F8",
+  "background_color": "#F6F7F8",
   "display": "standalone"
 }

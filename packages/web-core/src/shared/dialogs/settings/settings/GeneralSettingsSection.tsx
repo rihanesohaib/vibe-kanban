@@ -836,6 +836,12 @@ export function GeneralSettingsSection() {
         </div>
       </SettingsCard>
 
+      <SettingsCard title={t('settings.general.about.title')}>
+        <p className="text-sm text-low">
+          {t('settings.general.about.description')}
+        </p>
+      </SettingsCard>
+
       <SettingsSaveBar
         show={hasUnsavedChanges}
         saving={saving}

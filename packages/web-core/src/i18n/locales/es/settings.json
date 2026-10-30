@@ -291,6 +291,10 @@
           "label": "Habilitar Beta de Workspaces",
           "helper": "Usa la nueva interfaz de workspaces al ver intentos de tareas. Las tareas se abrirán primero en la vista de tareas, y los intentos se abrirán en la nueva vista de workspaces."
         }
+      },
+      "about": {
+        "title": "Acerca de",
+        "description": "Agent Control Center está basado en Vibe Kanban (Apache-2.0)."
       }
     },
     "agents": {

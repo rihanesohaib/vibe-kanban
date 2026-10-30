@@ -291,6 +291,10 @@
           "label": "워크스페이스 베타 활성화",
           "helper": "작업 시도를 볼 때 새로운 워크스페이스 인터페이스를 사용합니다. 작업은 먼저 작업 보기에서 열리고, 시도는 새로운 워크스페이스 보기에서 열립니다."
         }
+      },
+      "about": {
+        "title": "정보",
+        "description": "Agent Control Center는 Vibe Kanban(Apache-2.0)을 기반으로 합니다."
       }
     },
     "agents": {

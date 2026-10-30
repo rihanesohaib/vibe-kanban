@@ -337,7 +337,7 @@ export function LandingPage() {
         {/* Header */}
         <header className="shrink-0 space-y-base p-double pb-base">
           <div className="flex items-center justify-between">
-            <img src={logoSrc} alt="Vibe Kanban" className="h-8 w-auto logo" />
+            <img src={logoSrc} alt="Agent Control Center" className="h-8 w-auto logo" />
             <div className="flex flex-wrap items-center gap-2">
               {SOCIAL_LINKS.map((link) => (
                 <PrimaryButton
@@ -353,11 +353,11 @@ export function LandingPage() {
           <div className="rounded-sm border border-brand bg-brand/20 p-base">
             <div className="flex items-start gap-base">
               <WarningIcon
-                className="size-icon-sm text-brand shrink-0 mt-[2px]"
+                className="size-icon-sm text-warning shrink-0 mt-[2px]"
                 weight="fill"
               />
               <p className="text-sm text-normal">
-                Vibe Kanban runs AI coding agents with{' '}
+                Agent Control Center runs AI coding agents with{' '}
                 <code>--dangerously-skip-permissions</code> /{' '}
                 <code>--yolo</code> by default. Always review what agents are
                 doing.{' '}
