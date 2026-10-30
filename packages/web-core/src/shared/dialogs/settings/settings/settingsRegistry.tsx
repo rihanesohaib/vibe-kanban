@@ -5,7 +5,6 @@ import {
   CloudIcon,
   CpuIcon,
   PlugIcon,
-  BroadcastIcon,
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { GeneralSettingsSection } from './GeneralSettingsSection';
@@ -14,17 +13,10 @@ import { OrganizationsSettingsSection } from './OrganizationsSettingsSection';
 import { RemoteProjectsSettingsSection } from './RemoteProjectsSettingsSection';
 import { AgentsSettingsSection } from './AgentsSettingsSection';
 import { McpSettingsSection } from './McpSettingsSection';
-import { RelaySettingsSectionContent } from './RelaySettingsSection';
 import { isRemoteEnabled } from '@/shared/lib/remoteApi';
 
 export type SettingsSectionType =
-  | 'general'
-  | 'repos'
-  | 'organizations'
-  | 'remote-projects'
-  | 'agents'
-  | 'mcp'
-  | 'relay';
+  'general' | 'repos' | 'organizations' | 'remote-projects' | 'agents' | 'mcp';
 
 export type SettingsSectionGroup = 'host' | 'universal';
 
@@ -36,7 +28,6 @@ export type SettingsSectionInitialState = {
     { organizationId?: string; projectId?: string } | undefined;
   agents: { executor?: string; variant?: string } | undefined;
   mcp: undefined;
-  relay: { hostId?: string } | undefined;
 };
 
 export interface SettingsSectionDefinition {
@@ -63,12 +54,6 @@ export const SETTINGS_SECTION_DEFINITIONS: SettingsSectionDefinition[] = [
     group: 'universal',
     requiresRemote: true,
   },
-  {
-    id: 'relay',
-    icon: BroadcastIcon,
-    group: 'universal',
-    requiresRemote: true,
-  },
 ];
 
 export function getAvailableSettingsSections(): SettingsSectionDefinition[] {
@@ -89,8 +74,7 @@ export function isHostSpecificSettingsSection(
 
 export function renderSettingsSection(
   type: SettingsSectionType,
-  initialState?: SettingsSectionInitialState[SettingsSectionType],
-  onClose?: () => void
+  initialState?: SettingsSectionInitialState[SettingsSectionType]
 ) {
   switch (type) {
     case 'general':
@@ -115,13 +99,6 @@ export function renderSettingsSection(
       return <AgentsSettingsSection />;
     case 'mcp':
       return <McpSettingsSection />;
-    case 'relay':
-      return (
-        <RelaySettingsSectionContent
-          initialState={initialState as SettingsSectionInitialState['relay']}
-          onClose={onClose}
-        />
-      );
     default:
       return <GeneralSettingsSection />;
   }

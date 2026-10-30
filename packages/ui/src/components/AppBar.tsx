@@ -9,7 +9,6 @@ import {
   LayoutIcon,
   DownloadSimpleIcon,
   GaugeIcon,
-  LinkIcon,
   PlusIcon,
   KanbanIcon,
   SpinnerIcon,
@@ -46,17 +45,13 @@ function getProjectInitials(name: string): string {
 
 interface AppBarProps {
   projects: AppBarProject[];
-  hosts?: AppBarHost[];
-  onPairHostClick?: () => void;
-  activeHostId?: string | null;
   onCreateProject: () => void;
   onExportClick?: () => void;
   onWorkspacesClick: () => void;
   onControlCenterClick?: () => void;
   isControlCenterActive?: boolean;
-  onHostClick?: (hostId: string, status: AppBarHostStatus) => void;
   showWorkspacesButton?: boolean;
-  /** Hosts, kanban projects and export sections; they all need the cloud. */
+  /** Kanban projects and export sections; they need the cloud. */
   showCloudSections?: boolean;
   onProjectClick: (projectId: string) => void;
   onProjectsDragEnd: (result: DropResult) => void;
@@ -86,26 +81,6 @@ export interface AppBarProject {
   color: string;
 }
 
-export type AppBarHostStatus = 'online' | 'offline' | 'unpaired';
-
-export interface AppBarHost {
-  id: string;
-  name: string;
-  status: AppBarHostStatus;
-}
-
-function getHostStatusLabel(status: AppBarHostStatus): string {
-  if (status === 'online') return 'Online';
-  if (status === 'offline') return 'Offline';
-  return 'Unpaired';
-}
-
-function getHostStatusIndicatorClass(status: AppBarHostStatus): string {
-  if (status === 'online') return 'bg-success';
-  if (status === 'offline') return 'bg-low';
-  return 'bg-white border-warning';
-}
-
 function AppBarSectionLabel({ children }: { children: ReactNode }) {
   return (
     <p className="w-10 text-center text-[9px] font-medium leading-none tracking-wide text-low">
@@ -118,7 +93,7 @@ const appBarItemBaseClassName =
   'flex items-center justify-center w-10 h-10 rounded-lg text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand';
 
 type AppBarSection = {
-  key: 'local' | 'remote' | 'projects' | 'export';
+  key: 'local' | 'projects' | 'export';
   label: string;
   items: AppBarSectionItem[];
 };
@@ -132,14 +107,6 @@ type AppBarSectionItem =
       isActive?: boolean;
       onClick?: () => void;
       className?: string;
-      wrapperClassName?: string;
-    }
-  | {
-      key: string;
-      kind: 'host-button';
-      host: AppBarHost;
-      isActive: boolean;
-      onClick?: () => void;
       wrapperClassName?: string;
     }
   | {
@@ -179,38 +146,13 @@ function getStandardAppBarButtonClassName({
   );
 }
 
-function getHostButtonClassName({
-  host,
-  isActive,
-}: {
-  host: AppBarHost;
-  isActive: boolean;
-}) {
-  const isOffline = host.status === 'offline';
-
-  return cn(
-    appBarItemBaseClassName,
-    isOffline
-      ? 'bg-primary text-low opacity-50 cursor-not-allowed'
-      : isActive
-        ? 'bg-brand/20 text-brand cursor-pointer hover:bg-brand/20'
-        : host.status === 'unpaired'
-          ? 'bg-primary text-warning cursor-pointer hover:bg-warning/10'
-          : 'bg-primary text-normal cursor-pointer hover:bg-brand/10'
-  );
-}
-
 export function AppBar({
   projects,
-  hosts = [],
-  onPairHostClick,
-  activeHostId = null,
   onCreateProject,
   onExportClick,
   onWorkspacesClick,
   onControlCenterClick,
   isControlCenterActive = false,
-  onHostClick,
   showWorkspacesButton = true,
   showCloudSections = true,
   onProjectClick,
@@ -262,41 +204,6 @@ export function AppBar({
           isActive: isWorkspacesActive,
           onClick: onWorkspacesClick,
         },
-      ],
-    });
-  }
-
-  if (showCloudSections && (hosts.length > 0 || onPairHostClick)) {
-    sections.push({
-      key: 'remote',
-      label: 'Remote',
-      items: [
-        ...hosts.map((host) => ({
-          key: `host-${host.id}`,
-          kind: 'host-button' as const,
-          host,
-          isActive: host.id === activeHostId,
-          onClick: () => {
-            if (host.status === 'offline') {
-              return;
-            }
-
-            onHostClick?.(host.id, host.status);
-          },
-        })),
-        ...(onPairHostClick
-          ? [
-              {
-                key: 'pair-remote-device',
-                kind: 'icon-button' as const,
-                label: 'Pair a remote device',
-                icon: LinkIcon,
-                onClick: onPairHostClick,
-                className:
-                  'bg-primary text-muted hover:text-normal hover:bg-tertiary',
-              },
-            ]
-          : []),
       ],
     });
   }
@@ -383,39 +290,6 @@ export function AppBar({
             </button>
           </Tooltip>
         );
-      case 'host-button': {
-        const isOffline = item.host.status === 'offline';
-
-        return (
-          <Tooltip
-            content={`${item.host.name} · ${getHostStatusLabel(item.host.status)}`}
-            side="right"
-          >
-            <div className="relative">
-              <span
-                className={cn(
-                  'absolute -top-1 -right-1 z-10',
-                  'w-3.5 h-3.5 rounded-full border border-secondary',
-                  getHostStatusIndicatorClass(item.host.status)
-                )}
-                aria-hidden="true"
-              />
-              <button
-                type="button"
-                disabled={isOffline}
-                onClick={item.onClick}
-                className={getHostButtonClassName({
-                  host: item.host,
-                  isActive: item.isActive,
-                })}
-                aria-label={`${item.host.name} (${getHostStatusLabel(item.host.status)})`}
-              >
-                {getProjectInitials(item.host.name)}
-              </button>
-            </div>
-          </Tooltip>
-        );
-      }
       case 'kanban-cta':
         return (
           <Popover>

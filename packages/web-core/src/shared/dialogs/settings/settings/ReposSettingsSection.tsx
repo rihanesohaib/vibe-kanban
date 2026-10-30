@@ -39,7 +39,7 @@ import {
   SettingsCheckbox,
   SettingsSaveBar,
 } from './SettingsComponents';
-import { useSettingsMachineClient } from './SettingsHostContext';
+import { localMachineClient } from '@/shared/lib/machineClient';
 
 interface RepoScriptsFormState {
   display_name: string;
@@ -132,7 +132,7 @@ export function ReposSettingsSection({
 }: ReposSettingsSectionProps) {
   const { t } = useTranslation('settings');
   const queryClient = useQueryClient();
-  const machineClient = useSettingsMachineClient();
+  const machineClient = localMachineClient;
   const reposQueryKey = [
     'repos',
     ...(machineClient?.queryScopeKey ?? ['machine', 'unselected']),
