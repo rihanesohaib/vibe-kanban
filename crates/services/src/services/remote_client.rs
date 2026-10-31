@@ -1029,6 +1029,7 @@ fn map_reqwest_error(e: reqwest::Error) -> RemoteClientError {
     if e.is_timeout() {
         RemoteClientError::Timeout
     } else {
-        RemoteClientError::Transport(e.to_string())
+        // URLs may embed invitation tokens or presigned signatures.
+        RemoteClientError::Transport(e.without_url().to_string())
     }
 }
