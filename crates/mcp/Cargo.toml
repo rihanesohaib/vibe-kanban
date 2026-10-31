@@ -29,3 +29,6 @@ reqwest = { workspace = true }
 rustls = { workspace = true }
 regex = "1"
 thiserror = { workspace = true }
+
+[dev-dependencies]
+axum = { workspace = true }

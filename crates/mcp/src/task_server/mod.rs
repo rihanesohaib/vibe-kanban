@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub(crate) use crate::ApiResponseEnvelope;
+use crate::api_auth::ApiAuth;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
 pub struct McpRepoContext {
@@ -49,6 +50,7 @@ pub enum McpMode {
 #[derive(Debug, Clone)]
 pub struct McpServer {
     client: reqwest::Client,
+    auth: ApiAuth,
     base_url: String,
     tool_router: ToolRouter<McpServer>,
     context: Option<McpContext>,
@@ -59,6 +61,7 @@ impl McpServer {
     pub fn new_global(base_url: &str) -> Self {
         Self {
             client: reqwest::Client::new(),
+            auth: ApiAuth::from_env_or_file(),
             base_url: base_url.to_string(),
             tool_router: Self::global_mode_router(),
             context: None,
@@ -69,6 +72,7 @@ impl McpServer {
     pub fn new_orchestrator(base_url: &str) -> Self {
         Self {
             client: reqwest::Client::new(),
+            auth: ApiAuth::from_env_or_file(),
             base_url: base_url.to_string(),
             tool_router: Self::orchestrator_mode_router(),
             context: None,
@@ -130,7 +134,7 @@ impl McpServer {
 
         let response = tokio::time::timeout(
             std::time::Duration::from_millis(500),
-            self.client.get(&url).query(&query).send(),
+            self.auth.send(self.client.get(&url).query(&query)),
         )
         .await
         .context("Timed out fetching /api/containers/attempt-context")?
@@ -198,7 +202,7 @@ impl McpServer {
 
         let response = tokio::time::timeout(
             std::time::Duration::from_millis(2000),
-            self.client.get(&url).send(),
+            self.auth.send(self.client.get(&url)),
         )
         .await
         .ok()?
@@ -228,7 +232,7 @@ impl McpServer {
 
         let response = tokio::time::timeout(
             std::time::Duration::from_millis(2000),
-            self.client.get(&url).send(),
+            self.auth.send(self.client.get(&url)),
         )
         .await
         .ok()?

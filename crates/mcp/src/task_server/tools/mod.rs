@@ -114,7 +114,7 @@ impl McpServer {
         &self,
         rb: reqwest::RequestBuilder,
     ) -> Result<T, ToolError> {
-        let resp = rb.send().await.map_err(|error| {
+        let resp = self.auth.send(rb).await.map_err(|error| {
             ToolError::new("Failed to connect to VK API", Some(error.to_string()))
         })?;
 
@@ -144,7 +144,7 @@ impl McpServer {
     }
 
     async fn send_empty_json(&self, rb: reqwest::RequestBuilder) -> Result<(), ToolError> {
-        let resp = rb.send().await.map_err(|error| {
+        let resp = self.auth.send(rb).await.map_err(|error| {
             ToolError::new("Failed to connect to VK API", Some(error.to_string()))
         })?;
 
@@ -222,7 +222,7 @@ impl McpServer {
         }
 
         let url = self.url("/api/tags");
-        let tags: Vec<Tag> = match self.client.get(&url).send().await {
+        let tags: Vec<Tag> = match self.auth.send(self.client.get(&url)).await {
             Ok(resp) if resp.status().is_success() => {
                 match resp.json::<ApiResponseEnvelope<Vec<Tag>>>().await {
                     Ok(envelope) if envelope.success => envelope.data.unwrap_or_default(),
@@ -385,23 +385,17 @@ impl McpServer {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeSet, sync::Once};
+    use std::collections::BTreeSet;
 
     use rmcp::handler::server::tool::ToolRouter;
     use uuid::Uuid;
 
     use super::McpServer;
-    use crate::task_server::{McpContext, McpMode, McpRepoContext};
-
-    static RUSTLS_PROVIDER: Once = Once::new();
-
-    fn install_rustls_provider() {
-        RUSTLS_PROVIDER.call_once(|| {
-            rustls::crypto::aws_lc_rs::default_provider()
-                .install_default()
-                .expect("Failed to install rustls crypto provider");
-        });
-    }
+    use crate::{
+        api_auth::ApiAuth,
+        install_rustls_provider_for_tests as install_rustls_provider,
+        task_server::{McpContext, McpMode, McpRepoContext},
+    };
 
     fn tool_names(router: rmcp::handler::server::tool::ToolRouter<McpServer>) -> BTreeSet<String> {
         router
@@ -443,6 +437,7 @@ mod tests {
         let workspace_id = Uuid::new_v4();
         let server = McpServer {
             client: reqwest::Client::new(),
+            auth: ApiAuth::with_loader(|| None),
             base_url: "http://127.0.0.1:3000".to_string(),
             tool_router: ToolRouter::default(),
             context: Some(McpContext {
@@ -470,6 +465,7 @@ mod tests {
         install_rustls_provider();
         let server = McpServer {
             client: reqwest::Client::new(),
+            auth: ApiAuth::with_loader(|| None),
             base_url: "http://127.0.0.1:3000".to_string(),
             tool_router: ToolRouter::default(),
             context: None,
