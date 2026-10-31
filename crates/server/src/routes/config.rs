@@ -98,13 +98,107 @@ pub struct UserSystemInfo {
     pub capabilities: HashMap<String, Vec<BaseAgentCapability>>,
     pub shared_api_base: Option<String>,
     pub preview_proxy_port: Option<u16>,
+    /// Whether a GitHub personal access token is stored. The token itself is never returned.
+    pub has_github_pat: bool,
+}
+
+impl UserSystemInfo {
+    /// Strips every credential before the value leaves the server.
+    fn sanitized(mut self) -> Self {
+        self.has_github_pat = self.config.github.has_pat();
+        self.config = public_config(&self.config);
+        self.profiles = redact_profiles(&self.profiles);
+        self
+    }
+}
+
+/// Placeholder sent instead of executor environment variable values. Saving a
+/// profile that still contains it keeps the stored value.
+const REDACTED_ENV_VALUE: &str = "<redacted>";
+
+const NO_STORE: [(http::HeaderName, &str); 1] = [(http::header::CACHE_CONTROL, "no-store")];
+
+fn public_config(config: &Config) -> Config {
+    let mut config = config.clone();
+    config.github = config.github.redacted();
+    config
+}
+
+/// Calls `f(executor, variant, agent, env)` for every `env` map in serialized profiles.
+fn visit_profile_env(
+    root: &mut Value,
+    mut f: impl FnMut(&str, &str, &str, &mut serde_json::Map<String, Value>),
+) {
+    let Some(executors) = root.get_mut("executors").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for (executor, profile) in executors.iter_mut() {
+        let Some(profile) = profile.as_object_mut() else {
+            continue;
+        };
+        for (variant, config) in profile.iter_mut() {
+            let Some(config) = config.as_object_mut() else {
+                continue;
+            };
+            for (agent, settings) in config.iter_mut() {
+                if let Some(env) = settings.get_mut("env").and_then(Value::as_object_mut) {
+                    f(executor, variant, agent, env);
+                }
+            }
+        }
+    }
+}
+
+fn redact_profiles(profiles: &ExecutorConfigs) -> ExecutorConfigs {
+    let redacted = serde_json::to_value(profiles).and_then(|mut value| {
+        visit_profile_env(&mut value, |_, _, _, env| {
+            for v in env.values_mut() {
+                *v = Value::String(REDACTED_ENV_VALUE.to_string());
+            }
+        });
+        serde_json::from_value(value)
+    });
+    redacted.unwrap_or_else(|e| {
+        tracing::error!("Failed to redact executor profiles: {}", e);
+        ExecutorConfigs::from_defaults()
+    })
+}
+
+/// Replaces redaction placeholders in profiles received from a client with the
+/// currently stored values; placeholders with no stored value are dropped.
+fn restore_redacted_env(incoming: &mut Value, current: &ExecutorConfigs) {
+    let current = serde_json::to_value(current).unwrap_or(Value::Null);
+    visit_profile_env(incoming, |executor, variant, agent, env| {
+        let stored = current
+            .pointer(&format!(
+                "/executors/{}/{}/{}/env",
+                escape_pointer(executor),
+                escape_pointer(variant),
+                escape_pointer(agent)
+            ))
+            .and_then(Value::as_object);
+        env.retain(|key, value| {
+            if value.as_str() != Some(REDACTED_ENV_VALUE) {
+                return true;
+            }
+            match stored.and_then(|s| s.get(key)) {
+                Some(original) => {
+                    *value = original.clone();
+                    true
+                }
+                None => false,
+            }
+        });
+    });
+}
+
+fn escape_pointer(segment: &str) -> String {
+    segment.replace('~', "~0").replace('/', "~1")
 }
 
 // TODO: update frontend, BE schema has changed, this replaces GET /config and /config/constants
 #[axum::debug_handler]
-async fn get_user_system_info(
-    State(deployment): State<DeploymentImpl>,
-) -> ResponseJson<ApiResponse<UserSystemInfo>> {
+async fn get_user_system_info(State(deployment): State<DeploymentImpl>) -> impl IntoResponse {
     let config = deployment.config().read().await.clone();
     let login_status = match tokio::time::timeout(
         std::time::Duration::from_secs(2),
@@ -171,39 +265,55 @@ async fn get_user_system_info(
         },
         shared_api_base: deployment.shared_api_base().map(str::to_owned),
         preview_proxy_port: deployment.client_info().get_preview_proxy_port(),
-    };
+        has_github_pat: false,
+    }
+    .sanitized();
 
-    ResponseJson(ApiResponse::success(user_system_info))
+    (
+        NO_STORE,
+        ResponseJson(ApiResponse::<_, ()>::success(user_system_info)),
+    )
 }
 
 async fn update_config(
     State(deployment): State<DeploymentImpl>,
     Json(new_config): Json<Config>,
-) -> ResponseJson<ApiResponse<Config>> {
+) -> impl IntoResponse {
+    (
+        NO_STORE,
+        ResponseJson(apply_config_update(&deployment, new_config).await),
+    )
+}
+
+async fn apply_config_update(
+    deployment: &DeploymentImpl,
+    mut new_config: Config,
+) -> ApiResponse<Config> {
     let config_path = config_path();
 
     // Validate git branch prefix
     if !git::is_valid_branch_prefix(&new_config.git_branch_prefix) {
-        return ResponseJson(ApiResponse::error(
+        return ApiResponse::error(
             "Invalid git branch prefix. Must be a valid git branch name component without slashes.",
-        ));
+        );
     }
 
-    // Get old config state before updating
-    let old_config = deployment.config().read().await.clone();
+    // Hold the write lock so concurrent saves cannot drop each other's credentials.
+    let mut config = deployment.config().write().await;
+    let old_config = config.clone();
+    new_config.github = old_config.github.merge_update(new_config.github);
 
     match save_config_to_file(&new_config, &config_path).await {
         Ok(_) => {
-            let mut config = deployment.config().write().await;
             *config = new_config.clone();
             drop(config);
 
             // Track config events when fields transition from false → true
-            track_config_events(&deployment, &old_config, &new_config).await;
+            track_config_events(deployment, &old_config, &new_config).await;
 
-            ResponseJson(ApiResponse::success(new_config))
+            ApiResponse::success(public_config(&new_config))
         }
-        Err(e) => ResponseJson(ApiResponse::error(&format!("Failed to save config: {}", e))),
+        Err(e) => ApiResponse::error(&format!("Failed to save config: {}", e)),
     }
 }
 
@@ -439,13 +549,11 @@ pub struct ProfilesContent {
     pub path: String,
 }
 
-async fn get_profiles(
-    State(_deployment): State<DeploymentImpl>,
-) -> ResponseJson<ApiResponse<ProfilesContent>> {
+async fn get_profiles(State(_deployment): State<DeploymentImpl>) -> impl IntoResponse {
     let profiles_path = utils::assets::profiles_path();
 
     // Use cached data to ensure consistency with runtime and PUT updates
-    let profiles = ExecutorConfigs::get_cached();
+    let profiles = redact_profiles(&ExecutorConfigs::get_cached());
 
     let content = serde_json::to_string_pretty(&profiles).unwrap_or_else(|e| {
         tracing::error!("Failed to serialize profiles to JSON: {}", e);
@@ -453,10 +561,13 @@ async fn get_profiles(
             .unwrap_or_else(|_| "{}".to_string())
     });
 
-    ResponseJson(ApiResponse::success(ProfilesContent {
-        content,
-        path: profiles_path.display().to_string(),
-    }))
+    (
+        NO_STORE,
+        ResponseJson(ApiResponse::<_, ()>::success(ProfilesContent {
+            content,
+            path: profiles_path.display().to_string(),
+        })),
+    )
 }
 
 async fn update_profiles(
@@ -464,7 +575,11 @@ async fn update_profiles(
     body: String,
 ) -> ResponseJson<ApiResponse<String>> {
     // Try to parse as ExecutorProfileConfigs format
-    match serde_json::from_str::<ExecutorConfigs>(&body) {
+    let parsed = serde_json::from_str::<Value>(&body).and_then(|mut value| {
+        restore_redacted_env(&mut value, &ExecutorConfigs::get_cached());
+        serde_json::from_value::<ExecutorConfigs>(value)
+    });
+    match parsed {
         Ok(executor_profiles) => {
             // Save the profiles to file
             match executor_profiles.save_overrides() {
@@ -678,4 +793,142 @@ async fn handle_executor_discovered_options_ws(
         .send(LogMsg::Finished.to_ws_message_unchecked())
         .await;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PAT: &str = "sentinel-github-pat";
+    const OAUTH: &str = "sentinel-oauth-token";
+    const ENV_SECRET: &str = "sentinel-env-api-key";
+
+    fn config_with_secrets() -> Config {
+        let mut config = Config::default();
+        config.github.pat = Some(PAT.to_string());
+        config.github.oauth_token = Some(OAUTH.to_string());
+        config.github.username = Some("octocat".to_string());
+        config
+    }
+
+    fn profiles_with_env_secret() -> ExecutorConfigs {
+        let mut value = serde_json::to_value(ExecutorConfigs::from_defaults()).unwrap();
+        let agent = value
+            .pointer_mut("/executors/CLAUDE_CODE/DEFAULT/CLAUDE_CODE")
+            .and_then(Value::as_object_mut)
+            .expect("default Claude Code profile");
+        agent.insert(
+            "env".to_string(),
+            serde_json::json!({ "ANTHROPIC_API_KEY": ENV_SECRET, "PLAIN": "x" }),
+        );
+        serde_json::from_value(value).unwrap()
+    }
+
+    fn info(config: Config, profiles: ExecutorConfigs) -> UserSystemInfo {
+        UserSystemInfo {
+            version: "test".to_string(),
+            config,
+            machine_id: "machine".to_string(),
+            login_status: LoginStatus::LoggedOut,
+            remote_auth_degraded: None,
+            profiles,
+            environment: Environment::new(),
+            capabilities: HashMap::new(),
+            shared_api_base: None,
+            preview_proxy_port: None,
+            has_github_pat: false,
+        }
+        .sanitized()
+    }
+
+    #[test]
+    fn info_response_contains_no_secrets() {
+        let info = info(config_with_secrets(), profiles_with_env_secret());
+        let json = serde_json::to_string(&ApiResponse::<_, ()>::success(info)).unwrap();
+
+        for secret in [PAT, OAUTH, ENV_SECRET] {
+            assert!(!json.contains(secret), "response leaked {secret}");
+        }
+        let value: Value = serde_json::from_str(&json).unwrap();
+        let github = &value["data"]["config"]["github"];
+        assert!(github.get("pat").is_none());
+        assert!(github.get("oauth_token").is_none());
+        assert_eq!(github["username"], "octocat");
+        assert_eq!(value["data"]["has_github_pat"], true);
+        assert_eq!(
+            value["data"]["executors"]["CLAUDE_CODE"]["DEFAULT"]["CLAUDE_CODE"]["env"]["ANTHROPIC_API_KEY"],
+            REDACTED_ENV_VALUE
+        );
+    }
+
+    #[test]
+    fn info_reports_missing_pat() {
+        let info = info(Config::default(), ExecutorConfigs::from_defaults());
+        assert!(!info.has_github_pat);
+    }
+
+    #[test]
+    fn settings_save_without_token_keeps_stored_token() {
+        let stored = config_with_secrets();
+        // The client only ever sees the public config and sends it back.
+        let sent = serde_json::to_string(&public_config(&stored)).unwrap();
+        let mut incoming: Config = serde_json::from_str(&sent).unwrap();
+        incoming.git_branch_prefix = "feat".to_string();
+
+        let merged = stored.github.merge_update(incoming.github);
+        assert_eq!(merged.pat.as_deref(), Some(PAT));
+        assert_eq!(merged.oauth_token.as_deref(), Some(OAUTH));
+        assert_eq!(merged.username.as_deref(), Some("octocat"));
+    }
+
+    #[test]
+    fn settings_save_can_replace_or_clear_token() {
+        let stored = config_with_secrets().github;
+
+        let mut replace = stored.redacted();
+        replace.pat = Some("new-pat".to_string());
+        assert_eq!(stored.merge_update(replace).pat.as_deref(), Some("new-pat"));
+
+        let mut clear = stored.redacted();
+        clear.pat = Some(String::new());
+        assert_eq!(stored.merge_update(clear).pat, None);
+    }
+
+    #[test]
+    fn redacted_profile_env_is_restored_on_save() {
+        let stored = profiles_with_env_secret();
+        let mut sent = serde_json::to_value(redact_profiles(&stored)).unwrap();
+        let env_ptr = "/executors/CLAUDE_CODE/DEFAULT/CLAUDE_CODE/env";
+        sent.pointer_mut(env_ptr)
+            .and_then(Value::as_object_mut)
+            .unwrap()
+            .insert("NEW_KEY".to_string(), Value::String("typed".to_string()));
+
+        restore_redacted_env(&mut sent, &stored);
+
+        let env = sent.pointer(env_ptr).unwrap();
+        assert_eq!(env["ANTHROPIC_API_KEY"], ENV_SECRET);
+        assert_eq!(env["PLAIN"], "x");
+        assert_eq!(env["NEW_KEY"], "typed");
+        serde_json::from_value::<ExecutorConfigs>(sent).unwrap();
+    }
+
+    #[test]
+    fn unknown_redaction_placeholder_is_dropped() {
+        let mut sent = serde_json::to_value(ExecutorConfigs::from_defaults()).unwrap();
+        sent.pointer_mut("/executors/CLAUDE_CODE/DEFAULT/CLAUDE_CODE")
+            .and_then(Value::as_object_mut)
+            .unwrap()
+            .insert(
+                "env".to_string(),
+                serde_json::json!({ "GONE": REDACTED_ENV_VALUE }),
+            );
+
+        restore_redacted_env(&mut sent, &ExecutorConfigs::from_defaults());
+
+        let env = sent
+            .pointer("/executors/CLAUDE_CODE/DEFAULT/CLAUDE_CODE/env")
+            .unwrap();
+        assert!(env.get("GONE").is_none());
+    }
 }

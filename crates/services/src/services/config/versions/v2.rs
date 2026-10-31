@@ -131,9 +131,16 @@ impl Default for Config {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+/// Credential fields are persisted to config.json but never part of the
+/// browser-facing type; API handlers must pass the config through
+/// `redacted()` before returning it.
+#[derive(Clone, Serialize, Deserialize, TS)]
 pub struct GitHubConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(skip)]
     pub pat: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(skip)]
     pub oauth_token: Option<String>,
     pub username: Option<String>,
     pub primary_email: Option<String>,
@@ -191,7 +198,52 @@ impl Default for GitHubConfig {
     }
 }
 
+impl std::fmt::Debug for GitHubConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GitHubConfig")
+            .field("pat", &self.pat.as_ref().map(|_| "<redacted>"))
+            .field(
+                "oauth_token",
+                &self.oauth_token.as_ref().map(|_| "<redacted>"),
+            )
+            .field("username", &self.username)
+            .field("primary_email", &self.primary_email)
+            .field("default_pr_base", &self.default_pr_base)
+            .finish()
+    }
+}
+
 impl GitHubConfig {
+    pub fn has_pat(&self) -> bool {
+        self.pat.as_deref().is_some_and(|p| !p.is_empty())
+    }
+
+    /// Copy with all credential fields removed, safe to send to clients.
+    pub fn redacted(&self) -> Self {
+        Self {
+            pat: None,
+            oauth_token: None,
+            ..self.clone()
+        }
+    }
+
+    /// Applies an update received from a client. Credentials the client did
+    /// not send are kept; an empty string clears the stored value.
+    pub fn merge_update(&self, incoming: Self) -> Self {
+        fn merge(stored: &Option<String>, incoming: Option<String>) -> Option<String> {
+            match incoming {
+                None => stored.clone(),
+                Some(v) if v.is_empty() => None,
+                Some(v) => Some(v),
+            }
+        }
+        Self {
+            pat: merge(&self.pat, incoming.pat),
+            oauth_token: merge(&self.oauth_token, incoming.oauth_token),
+            ..incoming
+        }
+    }
+
     pub fn token(&self) -> Option<String> {
         self.pat
             .as_deref()

@@ -279,7 +279,7 @@ async fn status(
 /// Returns the current access token (auto-refreshes if needed)
 async fn get_token(
     State(deployment): State<DeploymentImpl>,
-) -> Result<ResponseJson<ApiResponse<TokenResponse>>, ApiError> {
+) -> Result<impl axum::response::IntoResponse, ApiError> {
     let remote_client = deployment.remote_client()?;
 
     // This will auto-refresh the token if expired
@@ -288,10 +288,13 @@ async fn get_token(
     let creds = deployment.auth_context().get_credentials().await;
     let expires_at = creds.and_then(|c| c.expires_at);
 
-    Ok(ResponseJson(ApiResponse::success(TokenResponse {
-        access_token,
-        expires_at,
-    })))
+    Ok((
+        [(axum::http::header::CACHE_CONTROL, "no-store")],
+        ResponseJson(ApiResponse::<_, ()>::success(TokenResponse {
+            access_token,
+            expires_at,
+        })),
+    ))
 }
 
 async fn get_current_user(
