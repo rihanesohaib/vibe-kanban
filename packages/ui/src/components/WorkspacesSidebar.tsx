@@ -259,7 +259,6 @@ export function WorkspacesSidebar({
             {searchControls}
           </div>
         )}
-
       </div>
 
       {/* Scrollable workspace list */}

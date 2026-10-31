@@ -86,7 +86,6 @@ const AGENT_PRIORITY: BaseCodingAgent[] = [
   BaseCodingAgent.GEMINI,
 ];
 
-
 function randomDefaultSoundFile(): SoundFile {
   const randomIndex = Math.floor(Math.random() * SOUND_OPTIONS.length);
   return SOUND_OPTIONS[randomIndex]?.value ?? SoundFile.COW_MOOING;
