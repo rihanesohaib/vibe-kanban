@@ -36,6 +36,30 @@ impl OriginKey {
     }
 }
 
+/// Reject requests whose Host is not loopback (`localhost`, `127.0.0.1`,
+/// `[::1]`, any port) or a host listed in `VK_ALLOWED_ORIGINS`. This blocks
+/// DNS rebinding, where an attacker-controlled name resolves to loopback.
+#[allow(clippy::result_large_err)]
+pub fn validate_host<B>(req: &mut Request<B>) -> Result<(), Response> {
+    match request_host_name(req) {
+        Some(name) if is_allowed_host_name(&name, allowed_hosts()) => Ok(()),
+        _ => Err(forbidden()),
+    }
+}
+
+/// Host check for the preview proxy listener, which is addressed as
+/// `{port}.localhost:{proxy_port}`. Accepts everything [`validate_host`] does
+/// plus one-label subdomains of those hosts.
+#[allow(clippy::result_large_err)]
+pub fn validate_preview_proxy_host<B>(req: &mut Request<B>) -> Result<(), Response> {
+    match request_host_name(req) {
+        Some(name) if is_allowed_preview_host_name(&name, allowed_hosts()) => Ok(()),
+        _ => Err(forbidden()),
+    }
+}
+
+/// Origin check. Must run after [`validate_host`]: the same-origin shortcut
+/// below is only safe once the Host itself is known to be allowlisted.
 #[allow(clippy::result_large_err)]
 pub fn validate_origin<B>(req: &mut Request<B>) -> Result<(), Response> {
     let Some(origin) = get_origin_header(req) else {
@@ -80,6 +104,54 @@ fn get_origin_header<B>(req: &Request<B>) -> Option<&str> {
 
 fn get_host_header<B>(req: &Request<B>) -> Option<&str> {
     get_header(req, header::HOST)
+}
+
+/// Normalized host name (no port) from the Host header, or from the URI
+/// authority for HTTP/2 requests that carry no Host header.
+fn request_host_name<B>(req: &Request<B>) -> Option<String> {
+    let authority = match get_host_header(req) {
+        Some(host) => host.parse::<axum::http::uri::Authority>().ok()?,
+        None => req.uri().authority()?.clone(),
+    };
+    Some(normalize_host(authority.host()))
+}
+
+fn is_allowed_host_name(name: &str, allowed: &[String]) -> bool {
+    name == "localhost" || allowed.iter().any(|host| host == name)
+}
+
+fn is_allowed_preview_host_name(name: &str, allowed: &[String]) -> bool {
+    is_allowed_host_name(name, allowed)
+        || name.split_once('.').is_some_and(|(label, parent)| {
+            !label.is_empty() && is_allowed_host_name(parent, allowed)
+        })
+}
+
+fn parse_allowed_hosts(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .filter_map(|entry| {
+            if entry.contains("://") {
+                Url::parse(entry).ok()?.host_str().map(normalize_host)
+            } else {
+                entry
+                    .parse::<axum::http::uri::Authority>()
+                    .ok()
+                    .map(|authority| normalize_host(authority.host()))
+            }
+        })
+        .collect()
+}
+
+fn allowed_hosts() -> &'static [String] {
+    static ALLOWED: OnceLock<Vec<String>> = OnceLock::new();
+    ALLOWED.get_or_init(|| {
+        std::env::var("VK_ALLOWED_ORIGINS")
+            .map(|value| parse_allowed_hosts(&value))
+            .unwrap_or_default()
+    })
 }
 
 fn get_header<B>(req: &Request<B>, name: header::HeaderName) -> Option<&str> {
@@ -242,5 +314,94 @@ mod tests {
         // Explicit default port matches implicit
         let mut req = make_request(Some("http://example.com:80"), Some("example.com"));
         assert!(validate_origin(&mut req).is_ok());
+    }
+
+    fn host_name_of(host: &str) -> Option<String> {
+        request_host_name(&make_request(None, Some(host)))
+    }
+
+    #[test]
+    fn loopback_hosts_are_allowed_on_any_port() {
+        for host in [
+            "localhost",
+            "localhost:3005",
+            "LOCALHOST:1",
+            "127.0.0.1",
+            "127.0.0.1:3005",
+            "[::1]",
+            "[::1]:3005",
+        ] {
+            let name = host_name_of(host).unwrap_or_else(|| panic!("{host} should parse"));
+            assert!(is_allowed_host_name(&name, &[]), "{host}");
+        }
+    }
+
+    #[test]
+    fn foreign_hosts_are_rejected() {
+        for host in [
+            "evil.example",
+            "evil.example:3005",
+            "localhost.evil.example",
+            "3005.localhost",
+            "0.0.0.0:3005",
+        ] {
+            let name = host_name_of(host).unwrap();
+            assert!(!is_allowed_host_name(&name, &[]), "{host}");
+        }
+        let mut no_host = make_request(None, None);
+        assert!(is_forbidden(validate_host(&mut no_host)));
+        let mut evil = make_request(None, Some("evil.example"));
+        assert!(is_forbidden(validate_host(&mut evil)));
+    }
+
+    #[test]
+    fn rebinding_request_with_matching_origin_is_rejected_by_host_check() {
+        let mut req = make_request(
+            Some("http://attacker.example:3005"),
+            Some("attacker.example:3005"),
+        );
+        assert!(is_forbidden(validate_host(&mut req)));
+    }
+
+    #[test]
+    fn allowed_origins_env_entries_extend_the_host_allowlist() {
+        let allowed = parse_allowed_hosts(
+            "http://localhost:3005, https://Box.Example.test, other.example.test:8080, ,not a url",
+        );
+        assert_eq!(
+            allowed,
+            vec![
+                "localhost".to_string(),
+                "box.example.test".to_string(),
+                "other.example.test".to_string(),
+            ]
+        );
+        let name = host_name_of("box.example.test:443").unwrap();
+        assert!(is_allowed_host_name(&name, &allowed));
+        assert!(!is_allowed_host_name("evil.example", &allowed));
+    }
+
+    #[test]
+    fn preview_proxy_accepts_localhost_subdomains_only() {
+        let allowed = vec!["box.example.test".to_string()];
+        for host in [
+            "3000.localhost:4000",
+            "3000--abc.localhost:4000",
+            "localhost:4000",
+            "127.0.0.1:4000",
+            "3000.box.example.test",
+        ] {
+            let name = host_name_of(host).unwrap();
+            assert!(is_allowed_preview_host_name(&name, &allowed), "{host}");
+        }
+        for host in [
+            "3000.evil.example:4000",
+            "3005.attacker.example",
+            "a.b.localhost",
+            "localhost.evil.example",
+        ] {
+            let name = host_name_of(host).unwrap();
+            assert!(!is_allowed_preview_host_name(&name, &allowed), "{host}");
+        }
     }
 }

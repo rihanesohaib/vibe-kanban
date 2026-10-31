@@ -2,9 +2,9 @@ use axum::{
     Router,
     routing::{IntoMakeService, get},
 };
-use tower_http::{compression::CompressionLayer, validate_request::ValidateRequestHeaderLayer};
+use tower_http::compression::CompressionLayer;
 
-use crate::{DeploymentImpl, middleware};
+use crate::{DeploymentImpl, middleware, middleware::ApiToken};
 
 pub mod approvals;
 pub mod config;
@@ -31,9 +31,8 @@ pub mod tags;
 pub mod terminal;
 pub mod workspaces;
 
-pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
-    let api_routes = Router::new()
-        .route("/health", get(health::health_check))
+pub fn router(deployment: DeploymentImpl, api_token: ApiToken) -> IntoMakeService<Router> {
+    let protected_api = Router::new()
         .merge(config::router())
         .merge(containers::router(&deployment))
         .merge(control_center::router())
@@ -55,16 +54,16 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .merge(terminal::router())
         .nest("/remote", remote::router())
         .nest("/attachments", attachments::routes())
-        .layer(ValidateRequestHeaderLayer::custom(
-            middleware::validate_origin,
-        ))
         .layer(axum::middleware::from_fn(middleware::log_server_errors))
         .with_state(deployment);
 
-    Router::new()
+    let public_api = Router::new().route("/health", get(health::health_check));
+
+    let frontend = Router::new()
         .route("/", get(frontend::serve_frontend_root))
-        .route("/{*path}", get(frontend::serve_frontend))
-        .nest("/api", api_routes)
+        .route("/{*path}", get(frontend::serve_frontend));
+
+    middleware::secure_app(protected_api, public_api, frontend, api_token)
         .layer(CompressionLayer::new())
         .into_make_service()
 }

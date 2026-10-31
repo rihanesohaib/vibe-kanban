@@ -1,13 +1,15 @@
 use anyhow::{self, Error as AnyhowError};
-use axum::Router;
 use deployment::{Deployment, DeploymentError};
-use server::{DeploymentImpl, middleware::origin::validate_origin, routes, startup};
+use server::{
+    DeploymentImpl,
+    middleware::{ApiToken, secure_preview_proxy},
+    routes, startup,
+};
 use services::services::container::ContainerService;
 use sqlx::Error as SqlxError;
 use strip_ansi_escapes::strip;
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
-use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tracing_subscriber::{EnvFilter, prelude::*};
 use utils::port_file::write_port_file_with_proxy;
 
@@ -89,7 +91,8 @@ async fn main() -> Result<(), VibeKanbanError> {
         .set_preview_proxy_port(actual_proxy_port)
         .expect("client preview proxy port already set");
 
-    let app_router = routes::router(deployment.clone());
+    let api_token = ApiToken::generate_and_persist(actual_main_port)?;
+    let app_router = routes::router(deployment.clone(), api_token);
 
     // Production only: open browser
     if !cfg!(debug_assertions) {
@@ -108,8 +111,7 @@ async fn main() -> Result<(), VibeKanbanError> {
         });
     }
 
-    let proxy_router: Router = routes::preview::subdomain_router(deployment.clone())
-        .layer(ValidateRequestHeaderLayer::custom(validate_origin));
+    let proxy_router = secure_preview_proxy(routes::preview::subdomain_router(deployment.clone()));
 
     let main_shutdown = shutdown_token.clone();
     let proxy_shutdown = shutdown_token.clone();

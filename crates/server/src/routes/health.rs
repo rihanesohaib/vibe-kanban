@@ -1,6 +1,7 @@
 use axum::response::Json;
-use utils::response::ApiResponse;
+use serde_json::{Value, json};
 
-pub(super) async fn health_check() -> Json<ApiResponse<String>> {
-    Json(ApiResponse::success("OK".to_string()))
+/// Unauthenticated liveness probe. Deliberately reveals nothing beyond "up".
+pub(super) async fn health_check() -> Json<Value> {
+    Json(json!({ "ok": true }))
 }

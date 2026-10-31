@@ -7,10 +7,13 @@ use std::{
 use deployment::{Deployment, DeploymentError};
 use services::services::container::ContainerService;
 use tokio_util::sync::CancellationToken;
-use tower_http::validate_request::ValidateRequestHeaderLayer;
 use utils::assets::asset_dir;
 
-use crate::{DeploymentImpl, middleware::origin::validate_origin, routes};
+use crate::{
+    DeploymentImpl,
+    middleware::{ApiToken, secure_preview_proxy},
+    routes,
+};
 
 /// A running server instance. Callers can read the port, then call `serve()`
 /// to run the server until the shutdown token is cancelled.
@@ -18,6 +21,7 @@ pub struct ServerHandle {
     pub port: u16,
     pub proxy_port: u16,
     pub deployment: DeploymentImpl,
+    api_token: ApiToken,
     shutdown_token: CancellationToken,
     main_listener: tokio::net::TcpListener,
     proxy_listener: tokio::net::TcpListener,
@@ -41,9 +45,9 @@ impl ServerHandle {
             .set_preview_proxy_port(self.proxy_port)
             .expect("client preview proxy port already set");
 
-        let app_router = routes::router(self.deployment.clone());
-        let proxy_router: axum::Router = routes::preview::subdomain_router(self.deployment.clone())
-            .layer(ValidateRequestHeaderLayer::custom(validate_origin));
+        let app_router = routes::router(self.deployment.clone(), self.api_token);
+        let proxy_router =
+            secure_preview_proxy(routes::preview::subdomain_router(self.deployment.clone()));
 
         let main_shutdown = self.shutdown_token.clone();
         let proxy_shutdown = self.shutdown_token.clone();
@@ -107,10 +111,13 @@ pub async fn start_with_bind(
 
     tracing::info!("Server on :{port}, Preview proxy on :{proxy_port}");
 
+    let api_token = ApiToken::generate_and_persist(port)?;
+
     Ok(ServerHandle {
         port,
         proxy_port,
         deployment,
+        api_token,
         shutdown_token,
         main_listener: listener,
         proxy_listener,
