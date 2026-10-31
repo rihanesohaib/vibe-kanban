@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
@@ -53,12 +53,31 @@ pub async fn load_config_from_file(config_path: &PathBuf) -> Config {
     }
 }
 
-/// Saves the config to the given path
-pub async fn save_config_to_file(
-    config: &Config,
-    config_path: &PathBuf,
-) -> Result<(), ConfigError> {
+/// Saves the config to the given path atomically, readable only by the owner.
+pub async fn save_config_to_file(config: &Config, config_path: &Path) -> Result<(), ConfigError> {
     let raw_config = serde_json::to_string_pretty(config)?;
-    std::fs::write(config_path, raw_config)?;
+    utils::private_fs::write_private_atomic(config_path, raw_config.as_bytes())?;
     Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use std::os::unix::fs::PermissionsExt;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn saved_config_is_owner_only_and_keeps_pat() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        let mut config = Config::default();
+        config.github.pat = Some("test-pat-value".to_string());
+
+        save_config_to_file(&config, &path).await.unwrap();
+
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        let loaded = load_config_from_file(&path).await;
+        assert_eq!(loaded.github.pat.as_deref(), Some("test-pat-value"));
+    }
 }

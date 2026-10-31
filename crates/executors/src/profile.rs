@@ -327,7 +327,7 @@ impl ExecutorConfigs {
 
         // Write overrides directly to file
         let content = serde_json::to_string_pretty(&overrides)?;
-        fs::write(&profiles_path, content)?;
+        workspace_utils::private_fs::write_private_atomic(&profiles_path, content.as_bytes())?;
 
         tracing::info!("Saved profile overrides to {:?}", profiles_path);
         Ok(())

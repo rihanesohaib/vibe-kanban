@@ -14,6 +14,7 @@ pub mod log_msg;
 pub mod msg_store;
 pub mod path;
 pub mod port_file;
+pub mod private_fs;
 pub mod process;
 pub mod response;
 pub mod sentry;

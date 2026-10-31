@@ -124,7 +124,7 @@ pub async fn initialize_deployment(
 ) -> Result<DeploymentImpl, DeploymentError> {
     // Create asset directory if it doesn't exist
     if !asset_dir().exists() {
-        std::fs::create_dir_all(asset_dir()).map_err(|e| {
+        utils::private_fs::create_private_dir_all(&asset_dir()).map_err(|e| {
             DeploymentError::Other(anyhow::anyhow!("Failed to create asset directory: {}", e))
         })?;
     }

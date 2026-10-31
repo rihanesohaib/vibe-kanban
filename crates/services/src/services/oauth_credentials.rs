@@ -6,11 +6,24 @@ use tokio::sync::RwLock;
 
 /// OAuth credentials containing the JWT tokens issued by the remote OAuth service.
 /// The `access_token` is short-lived; `refresh_token` allows minting a new pair.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Credentials {
     pub access_token: Option<String>,
     pub refresh_token: String,
     pub expires_at: Option<DateTime<Utc>>,
+}
+
+impl std::fmt::Debug for Credentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Credentials")
+            .field(
+                "access_token",
+                &self.access_token.as_ref().map(|_| "<redacted>"),
+            )
+            .field("refresh_token", &"<redacted>")
+            .field("expires_at", &self.expires_at)
+            .finish()
+    }
 }
 
 impl Credentials {
@@ -22,7 +35,7 @@ impl Credentials {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct StoredCredentials {
     refresh_token: String,
 }
@@ -95,26 +108,7 @@ impl OAuthCredentials {
     }
 
     async fn save_to_file(&self, creds: &StoredCredentials) -> std::io::Result<()> {
-        let tmp = self.path.with_extension("tmp");
-
-        let file = {
-            let mut opts = std::fs::OpenOptions::new();
-            opts.create(true).truncate(true).write(true);
-
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::OpenOptionsExt;
-                opts.mode(0o600);
-            }
-
-            opts.open(&tmp)?
-        };
-
-        serde_json::to_writer_pretty(&file, creds)?;
-        file.sync_all()?;
-        drop(file);
-
-        std::fs::rename(&tmp, &self.path)?;
-        Ok(())
+        let raw = serde_json::to_vec_pretty(creds)?;
+        utils::private_fs::write_private_atomic(&self.path, &raw)
     }
 }

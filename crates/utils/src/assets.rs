@@ -12,7 +12,7 @@ pub fn asset_dir() -> std::path::PathBuf {
 
     // Ensure the directory exists
     if !path.exists() {
-        std::fs::create_dir_all(&path).expect("Failed to create asset directory");
+        crate::private_fs::create_private_dir_all(&path).expect("Failed to create asset directory");
     }
 
     path
