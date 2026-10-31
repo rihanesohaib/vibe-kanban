@@ -298,6 +298,8 @@
       "description": "다양한 구성으로 코딩 에이전트의 동작을 사용자 정의하세요.",
       "loading": "에이전트 구성 로딩 중...",
       "selectAgent": "에이전트 선택",
+      "showUninstalled": "설치되지 않은 에이전트 표시 ({{count}})",
+      "hideUninstalled": "설치되지 않은 에이전트 숨기기",
       "save": {
         "button": "에이전트 구성 저장",
         "success": "✓ 실행자 구성이 성공적으로 저장되었습니다!",

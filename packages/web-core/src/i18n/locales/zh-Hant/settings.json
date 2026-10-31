@@ -298,6 +298,8 @@
       "description": "使用不同設定自訂編碼代理的行為。",
       "loading": "載入代理設定中...",
       "selectAgent": "選擇代理",
+      "showUninstalled": "顯示未安裝的代理（{{count}}）",
+      "hideUninstalled": "隱藏未安裝的代理",
       "save": {
         "button": "儲存代理設定",
         "success": "✓ 執行器設定儲存成功！",

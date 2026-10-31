@@ -298,6 +298,8 @@
       "description": "Personaliza el comportamiento de los agentes con diferentes configuraciones.",
       "loading": "Cargando configuraciones de agentes...",
       "selectAgent": "Seleccionar agente",
+      "showUninstalled": "Mostrar agentes no instalados ({{count}})",
+      "hideUninstalled": "Ocultar agentes no instalados",
       "save": {
         "button": "Guardar Configuraciones de Agentes",
         "success": "✓ ¡Configuración guardada con éxito!",
