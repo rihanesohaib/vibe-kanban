@@ -8,7 +8,7 @@
 #   backend         schema checks + clippy/fmt + tests (all backend CI jobs)
 #
 # Individual jobs (fine-grained):
-#   backend-schema   generated types + sqlx
+#   backend-schema   migration checks + generated types + sqlx
 #   backend-clippy   cargo fmt + clippy
 #   backend-test     cargo nextest / cargo test
 #   tauri            tauri-app fmt + clippy + check
@@ -81,7 +81,8 @@ job_frontend() {
 
 job_backend_schema() {
   local failed=0
-  log_job "backend-schema-checks" "generated types + sqlx"
+  log_job "backend-schema-checks" "migrations + generated types + sqlx"
+  run_step "Check migrations"         ./scripts/check-migrations.sh || failed=1
   run_step "Check generated TS types" npm run generate-types:check || failed=1
   run_step "SQLx offline check"       npm run prepare-db:check      || failed=1
   return $failed
@@ -180,6 +181,7 @@ file_touches_backend() {
   [[ "$f" == Cargo.lock ]] ||
   [[ "$f" == shared/* ]] ||
   [[ "$f" == scripts/prepare-db.js ]] ||
+  [[ "$f" == scripts/check-migrations.sh ]] ||
   [[ "$f" == pnpm-lock.yaml ]] ||
   [[ "$f" == package.json ]] ||
   [[ "$f" == rustfmt.toml ]] ||

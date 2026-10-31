@@ -31,6 +31,7 @@ Do not manually edit shared/types.ts, instead edit crates/server/src/bin/generat
 - Rust tests: `cargo test --workspace`
 - Generate TS types from Rust: `pnpm run generate-types` (or `generate-types:check` in CI)
 - Prepare SQLx (offline): `pnpm run prepare-db`
+- Check migrations (unique versions, released ones unchanged): `./scripts/check-migrations.sh`. After adding a migration run `./scripts/check-migrations.sh --update`; see [`crates/db/README.md`](crates/db/README.md).
 - Local NPX build: `pnpm run build:npx` then `pnpm pack` in `npx-cli/`
 - Format code: `pnpm run format` (runs `cargo fmt` + web-core/web Prettier)
 - Lint: `pnpm run lint` (runs web/ui ESLint + `cargo clippy`)

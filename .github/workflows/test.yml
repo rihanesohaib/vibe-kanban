@@ -76,6 +76,7 @@ jobs:
               - 'Cargo.lock'
               - 'shared/**'
               - 'scripts/prepare-db.js'
+              - 'scripts/check-migrations.sh'
               - 'pnpm-lock.yaml'
               - 'package.json'
               - 'rustfmt.toml'
@@ -163,6 +164,9 @@ jobs:
           cache-key: backend-schema-checks-${{ runner.os }}-${{ runner.arch }}-${{ env.RUNNER_LABEL }}
           setup-node: 'true'
           setup-sqlx-cli: 'true'
+
+      - name: Check migrations
+        run: ./scripts/check-migrations.sh
 
       - name: Check generated types
         run: npm run generate-types:check
