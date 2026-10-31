@@ -31,6 +31,10 @@ pub struct AgentAlert {
     pub body: String,
     pub workspace_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
+    /// Set by `NotificationService::alert`: the alert is listed but must not
+    /// play a sound or show a notification.
+    #[serde(default)]
+    pub silent: bool,
 }
 
 impl AgentAlert {
@@ -139,9 +143,17 @@ impl NotificationService {
 
     /// Deliver an agent alert. Open browser tabs receive it and apply the
     /// user's sound/push settings themselves; only when no tab is listening
-    /// do we fall back to OS-level notifications on this machine.
-    pub async fn alert(&self, alert: AgentAlert) {
-        if self.alerts_tx.send(alert.clone()).is_ok() {
+    /// do we fall back to OS-level notifications on this machine. Alerts for
+    /// workspaces the user's settings filter out are still delivered (so the
+    /// inbox refreshes) but marked silent.
+    pub async fn alert(&self, mut alert: AgentAlert, workspace_pinned: bool) {
+        alert.silent = !self
+            .config
+            .read()
+            .await
+            .notifications
+            .should_alert_for(workspace_pinned);
+        if self.alerts_tx.send(alert.clone()).is_ok() || alert.silent {
             return;
         }
         self.notify(&alert.title, &alert.body, alert.workspace_id)
@@ -386,7 +398,21 @@ mod tests {
             body: "Northwind Traders".to_string(),
             workspace_id: Some(Uuid::nil()),
             created_at: Utc::now(),
+            silent: false,
         }
+    }
+
+    fn service_with_filter(alert_only_pinned_workspaces: bool) -> NotificationService {
+        let mut config = Config::default();
+        config.notifications.alert_only_pinned_workspaces = alert_only_pinned_workspaces;
+        NotificationService::new(Arc::new(RwLock::new(config)))
+    }
+
+    async fn delivered_silent(alert_only_pinned_workspaces: bool, workspace_pinned: bool) -> bool {
+        let service = service_with_filter(alert_only_pinned_workspaces);
+        let mut rx = service.subscribe();
+        service.alert(sample_alert(), workspace_pinned).await;
+        rx.recv().await.expect("alert delivered").silent
     }
 
     #[tokio::test]
@@ -395,7 +421,7 @@ mod tests {
         let mut first = service.subscribe();
         let mut second = service.subscribe();
 
-        service.alert(sample_alert()).await;
+        service.alert(sample_alert(), true).await;
 
         for rx in [&mut first, &mut second] {
             let alert = rx.recv().await.expect("alert delivered");
@@ -405,12 +431,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn pinned_workspace_alert_is_audible_when_only_pinned() {
+        assert!(!delivered_silent(true, true).await);
+    }
+
+    #[tokio::test]
+    async fn unpinned_workspace_alert_is_silent_when_only_pinned() {
+        assert!(delivered_silent(true, false).await);
+    }
+
+    #[tokio::test]
+    async fn every_alert_is_audible_when_filter_off() {
+        assert!(!delivered_silent(false, true).await);
+        assert!(!delivered_silent(false, false).await);
+    }
+
+    #[tokio::test]
     async fn alert_without_subscribers_does_not_panic() {
         let mut config = Config::default();
         config.notifications.sound_enabled = false;
         config.notifications.push_enabled = false;
         let service = NotificationService::new(Arc::new(RwLock::new(config)));
-        service.alert(sample_alert()).await;
+        service.alert(sample_alert(), true).await;
+        service.alert(sample_alert(), false).await;
     }
 
     #[test]

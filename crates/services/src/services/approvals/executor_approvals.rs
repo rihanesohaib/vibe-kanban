@@ -62,7 +62,7 @@ impl ExecutorApprovalBridge {
             .await
             .insert(approval_id.clone(), waiter);
 
-        let (workspace_name, workspace_id) =
+        let (workspace_name, workspace_id, workspace_pinned) =
             ExecutionProcess::load_context(&self.db.pool, self.execution_process_id)
                 .await
                 .map(|ctx| {
@@ -70,9 +70,9 @@ impl ExecutorApprovalBridge {
                         .workspace
                         .name
                         .unwrap_or_else(|| ctx.workspace.branch.clone());
-                    (name, Some(ctx.workspace.id))
+                    (name, Some(ctx.workspace.id), ctx.workspace.pinned)
                 })
-                .unwrap_or_else(|_| ("Unknown workspace".to_string(), None));
+                .unwrap_or_else(|_| ("Unknown workspace".to_string(), None, false));
 
         let (kind, title, body) = if let Some(count) = question_count {
             let body = if count == 1 {
@@ -94,14 +94,18 @@ impl ExecutorApprovalBridge {
         };
 
         self.notification_service
-            .alert(AgentAlert {
-                id: AgentAlert::approval_id(&approval_id),
-                kind,
-                title,
-                body,
-                workspace_id,
-                created_at: request.created_at,
-            })
+            .alert(
+                AgentAlert {
+                    id: AgentAlert::approval_id(&approval_id),
+                    kind,
+                    title,
+                    body,
+                    workspace_id,
+                    created_at: request.created_at,
+                    silent: false,
+                },
+                workspace_pinned,
+            )
             .await;
 
         Ok(approval_id)

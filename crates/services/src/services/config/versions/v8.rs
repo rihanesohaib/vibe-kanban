@@ -3,11 +3,49 @@ use executors::{executors::BaseCodingAgent, profile::ExecutorProfileId};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 pub use v7::{
-    EditorConfig, EditorType, GitHubConfig, NotificationConfig, ShowcaseState, SoundFile,
-    ThemeMode, UiLanguage,
+    EditorConfig, EditorType, GitHubConfig, ShowcaseState, SoundFile, ThemeMode, UiLanguage,
 };
 
 use crate::services::config::versions::v7;
+
+fn default_alert_only_pinned_workspaces() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct NotificationConfig {
+    pub sound_enabled: bool,
+    pub push_enabled: bool,
+    pub sound_file: SoundFile,
+    /// Only play sounds and show notifications for pinned workspaces.
+    #[serde(default = "default_alert_only_pinned_workspaces")]
+    pub alert_only_pinned_workspaces: bool,
+}
+
+impl From<v7::NotificationConfig> for NotificationConfig {
+    fn from(old: v7::NotificationConfig) -> Self {
+        Self {
+            sound_enabled: old.sound_enabled,
+            push_enabled: old.push_enabled,
+            sound_file: old.sound_file,
+            alert_only_pinned_workspaces: default_alert_only_pinned_workspaces(),
+        }
+    }
+}
+
+impl Default for NotificationConfig {
+    fn default() -> Self {
+        v7::NotificationConfig::default().into()
+    }
+}
+
+impl NotificationConfig {
+    /// Whether an alert for a workspace with the given pinned state should
+    /// make a sound or show a notification.
+    pub fn should_alert_for(&self, workspace_pinned: bool) -> bool {
+        !self.alert_only_pinned_workspaces || workspace_pinned
+    }
+}
 
 fn default_git_branch_prefix() -> String {
     "vk".to_string()
@@ -74,7 +112,7 @@ impl Config {
             disclaimer_acknowledged: old_config.disclaimer_acknowledged,
             onboarding_acknowledged: old_config.onboarding_acknowledged,
             remote_onboarding_acknowledged: false,
-            notifications: old_config.notifications,
+            notifications: old_config.notifications.into(),
             editor: old_config.editor,
             github: old_config.github,
             analytics_enabled,
@@ -144,5 +182,66 @@ impl Default for Config {
             commit_reminder_prompt: None,
             send_message_shortcut: SendMessageShortcut::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn notifications(alert_only_pinned_workspaces: bool) -> NotificationConfig {
+        NotificationConfig {
+            alert_only_pinned_workspaces,
+            ..NotificationConfig::default()
+        }
+    }
+
+    #[test]
+    fn pinned_workspace_alerts_when_only_pinned() {
+        assert!(notifications(true).should_alert_for(true));
+    }
+
+    #[test]
+    fn unpinned_workspace_is_silent_when_only_pinned() {
+        assert!(!notifications(true).should_alert_for(false));
+    }
+
+    #[test]
+    fn every_workspace_alerts_when_filter_off() {
+        assert!(notifications(false).should_alert_for(true));
+        assert!(notifications(false).should_alert_for(false));
+    }
+
+    #[test]
+    fn default_config_alerts_only_for_pinned() {
+        assert!(Config::default().notifications.alert_only_pinned_workspaces);
+    }
+
+    #[test]
+    fn existing_v8_config_without_field_defaults_on() {
+        let mut value = serde_json::to_value(Config::default()).unwrap();
+        value["notifications"]
+            .as_object_mut()
+            .unwrap()
+            .remove("alert_only_pinned_workspaces");
+        let config = Config::from(value.to_string());
+        assert_eq!(config.config_version, "v8");
+        assert!(config.notifications.alert_only_pinned_workspaces);
+    }
+
+    #[test]
+    fn saved_off_value_round_trips() {
+        let mut config = Config::default();
+        config.notifications.alert_only_pinned_workspaces = false;
+        let raw = serde_json::to_string(&config).unwrap();
+        assert!(!Config::from(raw).notifications.alert_only_pinned_workspaces);
+    }
+
+    #[test]
+    fn v7_config_migrates_with_filter_on() {
+        let raw = serde_json::to_string(&v7::Config::default()).unwrap();
+        let config = Config::from(raw);
+        assert_eq!(config.config_version, "v8");
+        assert!(config.notifications.alert_only_pinned_workspaces);
     }
 }

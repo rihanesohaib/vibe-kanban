@@ -500,7 +500,12 @@ ids: Array<string>, all: boolean, };
 
 export type AgentAlertKind = "finished" | "failed" | "needs_approval" | "needs_input" | "merged";
 
-export type AgentAlert = { id: string, kind: AgentAlertKind, title: string, body: string, workspace_id: string | null, created_at: string, };
+export type AgentAlert = { id: string, kind: AgentAlertKind, title: string, body: string, workspace_id: string | null, created_at: string, 
+/**
+ * Set by `NotificationService::alert`: the alert is listed but must not
+ * play a sound or show a notification.
+ */
+silent: boolean, };
 
 export type DirectoryEntry = { name: string, path: string, is_directory: boolean, is_git_repo: boolean, last_modified: bigint | null, };
 
@@ -510,7 +515,11 @@ export type SearchMode = "taskform" | "settings";
 
 export type Config = { config_version: string, theme: ThemeMode, executor_profile: ExecutorProfileId, disclaimer_acknowledged: boolean, onboarding_acknowledged: boolean, remote_onboarding_acknowledged: boolean, notifications: NotificationConfig, editor: EditorConfig, github: GitHubConfig, analytics_enabled: boolean, workspace_dir: string | null, last_app_version: string | null, show_release_notes: boolean, language: UiLanguage, git_branch_prefix: string, showcases: ShowcaseState, pr_auto_description_enabled: boolean, pr_auto_description_prompt: string | null, commit_reminder_enabled: boolean, commit_reminder_prompt: string | null, send_message_shortcut: SendMessageShortcut, };
 
-export type NotificationConfig = { sound_enabled: boolean, push_enabled: boolean, sound_file: SoundFile, };
+export type NotificationConfig = { sound_enabled: boolean, push_enabled: boolean, sound_file: SoundFile, 
+/**
+ * Only play sounds and show notifications for pinned workspaces.
+ */
+alert_only_pinned_workspaces: boolean, };
 
 export enum ThemeMode { LIGHT = "LIGHT", DARK = "DARK", SYSTEM = "SYSTEM" }
 

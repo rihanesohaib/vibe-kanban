@@ -276,14 +276,18 @@ pub trait ContainerService {
             None => format!("Branch {}", ctx.workspace.branch),
         };
         self.notification_service()
-            .alert(AgentAlert {
-                id: AgentAlert::run_id(ctx.execution_process.id),
-                kind,
-                title,
-                body,
-                workspace_id: Some(ctx.workspace.id),
-                created_at: chrono::Utc::now(),
-            })
+            .alert(
+                AgentAlert {
+                    id: AgentAlert::run_id(ctx.execution_process.id),
+                    kind,
+                    title,
+                    body,
+                    workspace_id: Some(ctx.workspace.id),
+                    created_at: chrono::Utc::now(),
+                    silent: false,
+                },
+                ctx.workspace.pinned,
+            )
             .await;
     }
 
