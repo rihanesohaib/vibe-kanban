@@ -200,6 +200,10 @@
         "push": {
           "label": "Notificaciones Push",
           "helper": "Muestra notificaciones del sistema cuando las tareas terminan de ejecutarse."
+        },
+        "onlyPinned": {
+          "label": "Alertar solo en espacios de trabajo fijados",
+          "helper": "Solo reproduce el sonido y muestra notificaciones para los espacios de trabajo fijados. Los demás siguen apareciendo en la bandeja de entrada."
         }
       },
       "messageInput": {

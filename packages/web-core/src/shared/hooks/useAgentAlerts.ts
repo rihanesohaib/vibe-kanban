@@ -53,6 +53,7 @@ export function useAgentAlerts({
 
     const deliver = async (alert: AgentAlert) => {
       const current = latest.current.settings;
+      if (alert.silent) return;
       if (!current || (!current.sound_enabled && !current.push_enabled)) {
         return;
       }

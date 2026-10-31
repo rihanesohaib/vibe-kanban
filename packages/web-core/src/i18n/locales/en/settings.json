@@ -200,6 +200,10 @@
         "push": {
           "label": "Push Notifications",
           "helper": "Show a browser notification when an agent finishes, fails or needs your input."
+        },
+        "onlyPinned": {
+          "label": "Alert only for pinned workspaces",
+          "helper": "Only play the sound and show notifications for pinned workspaces. Other workspaces still appear in the inbox."
         }
       },
       "messageInput": {

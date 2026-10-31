@@ -200,6 +200,10 @@
         "push": {
           "label": "Notifications push",
           "helper": "Afficher les notifications système lorsque les tentatives de tâches sont terminées."
+        },
+        "onlyPinned": {
+          "label": "Alerter uniquement pour les espaces de travail épinglés",
+          "helper": "Ne jouer le son et n’afficher les notifications que pour les espaces de travail épinglés. Les autres restent visibles dans la boîte de réception."
         }
       },
       "messageInput": {

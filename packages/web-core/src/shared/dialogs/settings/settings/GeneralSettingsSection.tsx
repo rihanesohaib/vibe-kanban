@@ -788,6 +788,21 @@ export function GeneralSettingsSection() {
             });
           }}
         />
+
+        <SettingsCheckbox
+          id="alert-only-pinned-workspaces"
+          label={t('settings.general.notifications.onlyPinned.label')}
+          description={t('settings.general.notifications.onlyPinned.helper')}
+          checked={draft?.notifications.alert_only_pinned_workspaces ?? true}
+          onChange={(checked) =>
+            updateDraft({
+              notifications: {
+                ...draft!.notifications,
+                alert_only_pinned_workspaces: checked,
+              },
+            })
+          }
+        />
       </SettingsCard>
 
       {/* Message Input */}
