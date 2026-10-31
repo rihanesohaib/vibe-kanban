@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import path from "path";
 import fs from "fs";
+import type { ClientRequest } from "http";
 import pkg from "./package.json";
 
 function createFilteredLogger() {
@@ -77,6 +78,22 @@ export default schemas;
   };
 }
 
+// In dev, Vite serves the HTML, so the backend never sets its token cookie.
+// Attach the token the debug backend writes to dev_assets/api-token instead,
+// re-reading it per request because it changes on every backend restart.
+function readDevApiToken(): string | undefined {
+  const fromEnv = process.env.VK_API_TOKEN?.trim();
+  if (fromEnv) return fromEnv;
+  try {
+    const token = fs
+      .readFileSync(path.resolve(__dirname, '../../dev_assets/api-token'), 'utf8')
+      .trim();
+    return token || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export default defineConfig({
   customLogger: createFilteredLogger(),
   publicDir: path.resolve(__dirname, '../public'),
@@ -132,6 +149,14 @@ export default defineConfig({
         target: `http://localhost:${process.env.BACKEND_PORT || '3001'}`,
         changeOrigin: true,
         ws: true,
+        configure: (proxy) => {
+          const attachToken = (proxyReq: ClientRequest) => {
+            const token = readDevApiToken();
+            if (token) proxyReq.setHeader('authorization', `Bearer ${token}`);
+          };
+          proxy.on('proxyReq', attachToken);
+          proxy.on('proxyReqWs', attachToken);
+        },
       },
     },
     fs: {

@@ -11,6 +11,7 @@ import type {
   UpdateProjectStatusRequest,
 } from 'shared/remote-types';
 import { getAuthRuntime } from '@/shared/lib/auth/runtime';
+import { makeLocalApiRequest } from '@/shared/lib/localApiTransport';
 
 const BUILD_TIME_API_BASE = import.meta.env.VITE_VK_SHARED_API_BASE || '';
 
@@ -79,7 +80,10 @@ function makeLocalKanbanRequest(
   if (!headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  return fetch(`${LOCAL_KANBAN_API_BASE}${path}`, { ...options, headers });
+  return makeLocalApiRequest(`${LOCAL_KANBAN_API_BASE}${path}`, {
+    ...options,
+    headers,
+  });
 }
 
 async function makeAuthenticatedRequest(
